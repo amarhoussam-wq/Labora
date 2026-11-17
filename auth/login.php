@@ -22,7 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'صيغة البريد الإلكتروني غير صحيحة.';
         } else {
             if (!$conn) {
-                $error = 'لا يمكن الاتصال بقاعدة البيانات حالياً.';
+                global $db_connection_error;
+                $error = 'تعذر الاتصال بقاعدة البيانات: ' . ($db_connection_error ?? 'تحقق من إعدادات DB_HOST') . ' — <a href="' . BASE_URL . 'setup_db.php" class="text-primary fw-bold">اضغط هنا لتهيئة قاعدة البيانات</a>';
             } else {
                 $stmt = $conn->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
                 $stmt->execute([':email' => $email]);
@@ -82,7 +83,7 @@ $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
   <?php if ($error): ?>
     <div class="lb-alert lb-alert-error">
       <i class="bi bi-exclamation-circle-fill"></i>
-      <span><?= h($error) ?></span>
+      <span><?= $error ?></span>
     </div>
   <?php endif; ?>
 
