@@ -22,10 +22,18 @@ if (!defined('BASE_URL')) {
 }
 
 // Database connection
+$tmpConfig = '/tmp/labora_db_config.php';
 $localConfigFile = ROOT . '/db_config.php';
-$savedConfig = file_exists($localConfigFile) ? (require $localConfigFile) : [];
 
-$host = $savedConfig['host'] ?? (getenv('DB_HOST') ?: 'localhost');
+if (file_exists($tmpConfig)) {
+    $savedConfig = require $tmpConfig;
+} elseif (file_exists($localConfigFile)) {
+    $savedConfig = require $localConfigFile;
+} else {
+    $savedConfig = [];
+}
+
+$host = $savedConfig['host'] ?? (getenv('DB_HOST') ?: 'e880ooggksgs0004sosggows');
 $port = (int)($savedConfig['port'] ?? (getenv('DB_PORT') ?: 3306));
 $db   = $savedConfig['name'] ?? (getenv('DB_NAME') ?: 'labora');
 $user = $savedConfig['user'] ?? (getenv('DB_USER') ?: 'root');

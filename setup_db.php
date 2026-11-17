@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->exec($sql);
         }
 
-        // Save working config to db_config.php
+        // Save working config
         $exportCode = "<?php\nreturn " . var_export([
             'host' => $host,
             'port' => $port,
@@ -41,7 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'user' => $user,
             'pass' => $pass
         ], true) . ";\n";
-        @file_put_contents($localConfigFile, $exportCode);
+        @file_put_contents('/tmp/labora_db_config.php', $exportCode);
+        @file_put_contents(__DIR__ . '/db_config.php', $exportCode);
+        @file_put_contents(__DIR__ . '/uploads/db_config.php', $exportCode);
 
         $msg = "✅ تم الاتصال بنجاح بالخادم ($host) وتوليد قاعدة البيانات $db والجداول والبيانات التجريبية، وحُفظ الإعداد فوراً!";
         $status = "success";
