@@ -22,14 +22,18 @@ if (!defined('BASE_URL')) {
 }
 
 // Database connection
-$host = getenv('DB_HOST') ?: 'localhost';
-$db   = getenv('DB_NAME') ?: 'labora';
-$user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: '';
+$localConfigFile = ROOT . '/db_config.php';
+$savedConfig = file_exists($localConfigFile) ? (require $localConfigFile) : [];
+
+$host = $savedConfig['host'] ?? (getenv('DB_HOST') ?: 'localhost');
+$port = (int)($savedConfig['port'] ?? (getenv('DB_PORT') ?: 3306));
+$db   = $savedConfig['name'] ?? (getenv('DB_NAME') ?: 'labora');
+$user = $savedConfig['user'] ?? (getenv('DB_USER') ?: 'root');
+$pass = $savedConfig['pass'] ?? (getenv('DB_PASS') ?: '');
 
 try {
     $conn = new PDO(
-        "mysql:host={$host};dbname={$db};charset=utf8mb4",
+        "mysql:host={$host};port={$port};dbname={$db};charset=utf8mb4",
         $user,
         $pass,
         [
