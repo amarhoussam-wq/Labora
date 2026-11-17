@@ -128,10 +128,10 @@ $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
     </a>
   </div>
 
-  <div class="mt-4 p-2 bg-light rounded text-center small text-muted" style="font-size:0.75rem;">
-    <strong>بيانات الحسابات التجريبية (كلمة المرور: demo123):</strong><br>
-    المدير: admin@labora.dz | مخبر ابن سينا: ahmed@labora.dz<br>
-    المريض: karim@labora.dz أو sara@labora.dz
+  <div class="mt-4 p-3 bg-light rounded-3 text-center small text-muted" style="font-size:0.8rem; border: 1px dashed #90caf9;">
+    <strong class="text-primary d-block mb-1">بيانات تجريبية سريعة (كلمة المرور: demo123):</strong>
+    <div>🏢 <strong>فضاء المخبر:</strong> <code>lab1@labora.dz</code> أو <code>lab2@labora.dz</code></div>
+    <div>👤 <strong>حساب المريض:</strong> <code>patient@labora.dz</code></div>
   </div>
 </div>
 

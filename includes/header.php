@@ -73,6 +73,12 @@ function navActive(string ...$patterns): string {
           <a class="nav-link <?= navActive('analyses.php') ?>"
              href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link text-primary fw-bold <?= navActive('lab/dashboard') ?>"
+             href="<?= BASE_URL ?>lab/dashboard.php">
+            <i class="bi bi-hospital me-1"></i>فضاء المخبر
+          </a>
+        </li>
         <?php if (isLoggedIn() && currentUserRole() === 'patient'): ?>
         <li class="nav-item">
           <a class="nav-link <?= navActive('patient/appointments') ?>"
