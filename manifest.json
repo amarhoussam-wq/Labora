@@ -1,0 +1,16 @@
+{
+  "name": "LABORA - حجز التحاليل الطبية",
+  "short_name": "LABORA",
+  "start_url": "./patient/book.php",
+  "display": "standalone",
+  "background_color": "#0d47a1",
+  "theme_color": "#1565c0",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./assets/img/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

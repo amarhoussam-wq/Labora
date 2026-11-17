@@ -1,0 +1,35 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Android build outputs & caches
+android_app/build/
+android/app/build/
+android/.gradle/
+.gradle/
+build_apk.ps1
+
+# Uploaded test prescriptions (keep directory with .htaccess)
+uploads/prescriptions/*
+!uploads/prescriptions/.htaccess
+!uploads/prescriptions/.gitkeep
+
+# Local dependency folders
+node_modules/
+vendor/
+
+# Keep bundled assets
+!assets/vendor/
