@@ -33,7 +33,13 @@ if (file_exists($tmpConfig)) {
     $savedConfig = [];
 }
 
-$host = $savedConfig['host'] ?? (getenv('DB_HOST') ?: 'e880ooggksgs0004sosggows');
+$defaultHost = (PHP_OS_FAMILY === 'Windows') ? 'localhost' : 'e880ooggksgs0004sosggows';
+
+$host = $savedConfig['host'] ?? (getenv('DB_HOST') ?: $defaultHost);
+// If running in Docker on Coolify and host is set to "mysql", automatically use the real container host
+if (PHP_OS_FAMILY !== 'Windows' && ($host === 'mysql' || $host === 'localhost' || empty($host))) {
+    $host = 'e880ooggksgs0004sosggows';
+}
 $port = (int)($savedConfig['port'] ?? (getenv('DB_PORT') ?: 3306));
 $db   = $savedConfig['name'] ?? (getenv('DB_NAME') ?: 'labora');
 $user = $savedConfig['user'] ?? (getenv('DB_USER') ?: 'root');
