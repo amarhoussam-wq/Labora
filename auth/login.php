@@ -10,17 +10,14 @@ if (isLoggedIn()) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $error = 'طلب غير صالح أو انتهت صلاحية الجلسة.';
-    } else {
-        $email = trim($_POST['email'] ?? '');
-        $pass  = $_POST['password'] ?? '';
+    $email = trim($_POST['email'] ?? '');
+    $pass  = $_POST['password'] ?? '';
 
-        if (!$email || !$pass) {
-            $error = 'يرجى إدخال البريد الإلكتروني وكلمة المرور.';
-        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'صيغة البريد الإلكتروني غير صحيحة.';
-        } else {
+    if (!$email || !$pass) {
+        $error = 'يرجى إدخال البريد الإلكتروني وكلمة المرور.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'صيغة البريد الإلكتروني غير صحيحة.';
+    } else {
             if (!$conn) {
                 global $db_connection_error;
                 $error = 'تعذر الاتصال بقاعدة البيانات: ' . ($db_connection_error ?? 'تحقق من إعدادات DB_HOST') . ' — <a href="' . BASE_URL . 'setup_db.php" class="text-primary fw-bold">اضغط هنا لتهيئة قاعدة البيانات</a>';
@@ -54,7 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-}
 
 $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
 ?>

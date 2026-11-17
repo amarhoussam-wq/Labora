@@ -14,30 +14,27 @@ $formData = [
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $errors[] = 'طلب غير صالح أو انتهت صلاحية الجلسة.';
-    } else {
-        $fn   = trim($_POST['first_name'] ?? '');
-        $ln   = trim($_POST['last_name'] ?? '');
-        $em   = trim($_POST['email'] ?? '');
-        $ph   = trim($_POST['phone'] ?? '');
-        $pw   = $_POST['password'] ?? '';
-        $pw2  = $_POST['confirm_password'] ?? '';
+    $fn   = trim($_POST['first_name'] ?? '');
+    $ln   = trim($_POST['last_name'] ?? '');
+    $em   = trim($_POST['email'] ?? '');
+    $ph   = trim($_POST['phone'] ?? '');
+    $pw   = $_POST['password'] ?? '';
+    $pw2  = $_POST['confirm_password'] ?? '';
 
-        $formData = [
-            'first_name' => $fn,
-            'last_name'  => $ln,
-            'email'      => $em,
-            'phone'      => $ph
-        ];
+    $formData = [
+        'first_name' => $fn,
+        'last_name'  => $ln,
+        'email'      => $em,
+        'phone'      => $ph
+    ];
 
-        if (!$fn) $errors[] = 'الاسم الأول مطلوب.';
-        if (!$ln) $errors[] = 'اللقب مطلوب.';
-        if (!$em || !filter_var($em, FILTER_VALIDATE_EMAIL)) $errors[] = 'البريد الإلكتروني غير صالح.';
-        if (strlen($pw) < 6) $errors[] = 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل.';
-        if ($pw !== $pw2) $errors[] = 'كلمتا المرور غير متطابقتين.';
+    if (!$fn) $errors[] = 'الاسم الأول مطلوب.';
+    if (!$ln) $errors[] = 'اللقب مطلوب.';
+    if (!$em || !filter_var($em, FILTER_VALIDATE_EMAIL)) $errors[] = 'البريد الإلكتروني غير صالح.';
+    if (strlen($pw) < 6) $errors[] = 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل.';
+    if ($pw !== $pw2) $errors[] = 'كلمتا المرور غير متطابقتين.';
 
-        if (empty($errors)) {
+    if (empty($errors)) {
             if (!$conn) {
                 $errors[] = 'لا يمكن الاتصال بقاعدة البيانات حالياً.';
             } else {
@@ -61,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-}
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
