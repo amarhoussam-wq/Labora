@@ -82,6 +82,7 @@ CREATE TABLE `appointments` (
   `analyses_text` TEXT NOT NULL,
   `prescription_file` VARCHAR(255) DEFAULT NULL,
   `notes` TEXT DEFAULT NULL,
+  `contact_phone` VARCHAR(20) DEFAULT NULL,
   `status` ENUM('pending', 'accepted', 'rejected', 'cancelled') NOT NULL DEFAULT 'pending',
   `rejection_reason` VARCHAR(255) DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

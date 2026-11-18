@@ -4,6 +4,11 @@ requireRole('patient');
 
 $userId = currentUserId();
 
+// Pre-fetch user's saved phone to pre-fill the field
+$userPhoneStmt = $conn->prepare("SELECT phone FROM users WHERE id = :uid LIMIT 1");
+$userPhoneStmt->execute([':uid' => $userId]);
+$savedPhone = $userPhoneStmt->fetchColumn() ?: '';
+
 // Fetch active laboratories for dropdown
 $labs = $conn->query("SELECT id, name, city, address, phone FROM laboratories WHERE status='active' ORDER BY city, name")->fetchAll();
 $selectedLabId = (int)($_GET['lab_id'] ?? ($labs[0]['id'] ?? 0));
@@ -121,6 +126,26 @@ require_once dirname(__DIR__) . '/includes/header.php';
               <option value="">اختر اليوم أولاً</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      <!-- ── رقم الهاتف للتواصل (مطلوب) ─────────────────────── -->
+      <div class="mb-4 p-3 rounded-4" style="background:#EFF6FF; border:1.5px solid #BFDBFE;">
+        <label class="form-label fw-bold text-dark fs-6 mb-2" for="patientPhone">
+          <span class="badge bg-primary rounded-circle px-2 py-1 me-1">📞</span>
+          رقم هاتفك للتواصل (مطلوب):
+        </label>
+        <input type="tel" class="form-control form-control-lg rounded-3" 
+               name="patient_phone" id="patientPhone"
+               placeholder="مثال: 0550 123 456"
+               value="<?= h($savedPhone) ?>"
+               pattern="[0-9]{9,10}"
+               inputmode="numeric"
+               required
+               style="font-size:1.1rem; letter-spacing:1px;">
+        <div class="form-text small text-muted mt-1">
+          <i class="bi bi-telephone-fill me-1 text-primary"></i>
+          سيتصل بك المخبر على هذا الرقم لتأكيد موعدك أو الاستفسار — أرقام جزائرية فقط (9–10 أرقام)
         </div>
       </div>
 

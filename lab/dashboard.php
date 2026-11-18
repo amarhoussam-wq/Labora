@@ -86,7 +86,8 @@ $status_filter = trim($_GET['status'] ?? '');
 $sql = "
     SELECT a.*, 
            u.first_name, u.last_name, 
-           u.phone AS patient_phone, u.email AS patient_email
+           COALESCE(a.contact_phone, u.phone) AS patient_phone,
+           u.email AS patient_email
     FROM appointments a
     LEFT JOIN users u ON u.id = a.patient_id
     WHERE a.laboratory_id = :lid

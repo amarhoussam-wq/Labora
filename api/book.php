@@ -12,11 +12,16 @@ if (!$conn) {
 $patient_id    = currentUserId() ?: (int)($_POST['patient_id'] ?? 0);
 $laboratory_id = (int)($_POST['laboratory_id'] ?? 0);
 $slot_id       = (int)($_POST['slot_id'] ?? 0);
+$patient_phone = trim($_POST['patient_phone'] ?? '');
 $analyses_text = trim($_POST['analyses_text'] ?? '');
 $notes         = trim($_POST['notes'] ?? '');
 
 if (!$patient_id) {
     echo json_encode(['success' => false, 'message' => 'يرجى تسجيل الدخول أولاً']);
+    exit;
+}
+if (!$patient_phone) {
+    echo json_encode(['success' => false, 'message' => 'يرجى إدخال رقم الهاتف للتواصل']);
     exit;
 }
 if (!$laboratory_id || !$slot_id) {
@@ -94,8 +99,8 @@ try {
     // Insert Appointment
     $ins = $conn->prepare("
         INSERT INTO appointments 
-        (patient_id, laboratory_id, slot_id, appointment_date, appointment_time, analyses_text, prescription_file, notes, status) 
-        VALUES (:pid, :lid, :sid, :dt, :tm, :an, :rx, :nt, 'pending')
+        (patient_id, laboratory_id, slot_id, appointment_date, appointment_time, analyses_text, prescription_file, notes, contact_phone, status) 
+        VALUES (:pid, :lid, :sid, :dt, :tm, :an, :rx, :nt, :ph, 'pending')
     ");
     $ins->execute([
         ':pid' => $patient_id,
@@ -105,7 +110,8 @@ try {
         ':tm'  => $slot['slot_time'],
         ':an'  => $analyses_text,
         ':rx'  => $uploaded_filename,
-        ':nt'  => $notes ?: null
+        ':nt'  => $notes ?: null,
+        ':ph'  => $patient_phone
     ]);
     $appointment_id = (int)$conn->lastInsertId();
 
