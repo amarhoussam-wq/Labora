@@ -264,7 +264,7 @@ require_once 'includes/header.php';
               </div>
               <div class="lab-info-row">
                 <i class="bi bi-clock text-primary"></i>
-                <span><?= h($lab['working_hours'] ?: '08:00 - 17:00') ?></span>
+                <span><?= h($lab['working_hours'] ?? '08:00 - 17:00') ?></span>
               </div>
               <div class="lab-info-row mt-2">
                 <span class="cat-badge">

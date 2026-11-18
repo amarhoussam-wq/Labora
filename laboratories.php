@@ -124,7 +124,7 @@ require_once 'includes/header.php';
               </div>
               <div class="lab-info-row">
                 <i class="bi bi-clock text-primary"></i>
-                <span><?= h($lab['working_hours'] ?: '08:00 - 17:00') ?></span>
+                <span><?= h($lab['working_hours'] ?? '08:00 - 17:00') ?></span>
               </div>
               <?php if (!empty($lab['description'])): ?>
                 <p class="text-muted small mt-2 mb-0" style="line-height:1.5;">

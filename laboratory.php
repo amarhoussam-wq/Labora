@@ -93,7 +93,7 @@ require_once 'includes/header.php';
 
           <div>
             <span class="text-muted d-block mb-1">مواعيد وساعات العمل:</span>
-            <strong class="text-dark"><i class="bi bi-clock text-primary ms-1"></i> <?= h($lab['working_hours'] ?: '08:00 - 17:00') ?></strong>
+            <strong class="text-dark"><i class="bi bi-clock text-primary ms-1"></i> <?= h($lab['working_hours'] ?? '08:00 - 17:00') ?></strong>
           </div>
 
           <?php if (!empty($lab['description'])): ?>

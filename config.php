@@ -117,6 +117,147 @@ try {
                 (3, 8, 1000), (3, 12, 1800), (3, 13, 2800), (3, 15, 800);
             ");
         }
+        // Ensure working_hours column exists in laboratories
+        try {
+            $hasHours = $conn->query("SHOW COLUMNS FROM `laboratories` LIKE 'working_hours'")->fetch();
+            if (!$hasHours) {
+                $conn->exec("ALTER TABLE `laboratories` ADD `working_hours` VARCHAR(100) DEFAULT '07:30 - 16:30' AFTER `phone`");
+            }
+        } catch (Exception $e) {}
+
+        // Auto-seed real laboratories from Google Maps & Ouargla region
+        try {
+            $realLabs = [
+                [
+                    'id' => 1,
+                    'name' => 'مخبر أمنية للتحاليل الطبية — Oumnia Laboratory',
+                    'city' => 'ورقلة',
+                    'address' => 'حي رويسات، 30013 ورقلة',
+                    'phone' => '0663 35 28 98',
+                    'working_hours' => '07:30 - 16:00',
+                    'email' => 'oumnia@labora.dz',
+                    'first_name' => 'د. أمنية',
+                    'last_name' => 'للتشخيص'
+                ],
+                [
+                    'id' => 2,
+                    'name' => 'مخبر تحاليل طبية الدكتور شربي — Dr Charby',
+                    'city' => 'ورقلة',
+                    'address' => 'نهج عطوات قدور (بجانب ألفا موبايل)، ورقلة',
+                    'phone' => '029 71 20 30',
+                    'working_hours' => '07:30 - 17:00',
+                    'email' => 'charby@labora.dz',
+                    'first_name' => 'د. شربي',
+                    'last_name' => 'البيولوجي'
+                ],
+                [
+                    'id' => 3,
+                    'name' => 'مخبر بلعيد للتحاليل الطبية — Laboratoire Belaïd',
+                    'city' => 'ورقلة',
+                    'address' => 'شارع سي الحواس، ورقلة',
+                    'phone' => '029 71 55 66',
+                    'working_hours' => '07:30 - 17:00',
+                    'email' => 'belaid@labora.dz',
+                    'first_name' => 'د. بلعيد',
+                    'last_name' => 'الطبي'
+                ],
+                [
+                    'id' => 4,
+                    'name' => 'مخبر الرازي للتحاليل الطبية — Laboratoire El Razi',
+                    'city' => 'ورقلة',
+                    'address' => 'حي باحميد (بجانب عيادة د. خالدي)، ورقلة 30000',
+                    'phone' => '0696 44 04 92',
+                    'working_hours' => '07:30 - 16:00',
+                    'email' => 'razi@labora.dz',
+                    'first_name' => 'د. الرازي',
+                    'last_name' => 'المخبري'
+                ],
+                [
+                    'id' => 5,
+                    'name' => 'مخبر التحاليل الطبية لكحل محمد لمين — Dr Lekhel',
+                    'city' => 'ورقلة',
+                    'address' => 'طريق N49، تقاطع نهج سي الحواس وعطوات قدور، ورقلة',
+                    'phone' => '029 71 88 99',
+                    'working_hours' => '07:30 - 16:00',
+                    'email' => 'lekhel@labora.dz',
+                    'first_name' => 'د. لكحل',
+                    'last_name' => 'محمد لمين'
+                ]
+            ];
+
+            $passHash = '$2y$10$X782bI.ARiQe0oNSu0Txf.LO5JOlqfELMc/ecA5zTpRS77niKfNQi'; // demo123
+
+            foreach ($realLabs as $rl) {
+                // Upsert manager user
+                $uStmt = $conn->prepare("SELECT id FROM users WHERE email = :em LIMIT 1");
+                $uStmt->execute([':em' => $rl['email']]);
+                $uId = $uStmt->fetchColumn();
+                if (!$uId) {
+                    $insU = $conn->prepare("INSERT INTO users (first_name, last_name, email, phone, password_hash, role) VALUES (:fn, :ln, :em, :ph, :pw, 'lab_manager')");
+                    $insU->execute([
+                        ':fn' => $rl['first_name'],
+                        ':ln' => $rl['last_name'],
+                        ':em' => $rl['email'],
+                        ':ph' => $rl['phone'],
+                        ':pw' => $passHash
+                    ]);
+                    $uId = (int)$conn->lastInsertId();
+                } else {
+                    $updU = $conn->prepare("UPDATE users SET first_name = :fn, last_name = :ln, phone = :ph, role = 'lab_manager' WHERE id = :id");
+                    $updU->execute([':fn' => $rl['first_name'], ':ln' => $rl['last_name'], ':ph' => $rl['phone'], ':id' => $uId]);
+                }
+
+                // Upsert laboratory
+                $lStmt = $conn->prepare("SELECT id FROM laboratories WHERE id = :id LIMIT 1");
+                $lStmt->execute([':id' => $rl['id']]);
+                if ($lStmt->fetch()) {
+                    $updLab = $conn->prepare("UPDATE laboratories SET name = :nm, city = :ct, address = :ad, phone = :ph, working_hours = :wh, manager_id = :mid, status = 'active' WHERE id = :id");
+                    $updLab->execute([
+                        ':nm'  => $rl['name'],
+                        ':ct'  => $rl['city'],
+                        ':ad'  => $rl['address'],
+                        ':ph'  => $rl['phone'],
+                        ':wh'  => $rl['working_hours'],
+                        ':mid' => $uId,
+                        ':id'  => $rl['id']
+                    ]);
+                } else {
+                    $insLab = $conn->prepare("INSERT INTO laboratories (id, name, city, address, phone, working_hours, manager_id, status) VALUES (:id, :nm, :ct, :ad, :ph, :wh, :mid, 'active')");
+                    $insLab->execute([
+                        ':id'  => $rl['id'],
+                        ':nm'  => $rl['name'],
+                        ':ct'  => $rl['city'],
+                        ':ad'  => $rl['address'],
+                        ':ph'  => $rl['phone'],
+                        ':wh'  => $rl['working_hours'],
+                        ':mid' => $uId
+                    ]);
+                }
+
+                // Seed availability slots for next 7 days if fewer than 5
+                $slotCount = (int)$conn->query("SELECT COUNT(*) FROM availability_slots WHERE laboratory_id = {$rl['id']} AND slot_date >= CURDATE()")->fetchColumn();
+                if ($slotCount < 5) {
+                    $slotTimes = ['08:00:00', '08:30:00', '09:00:00', '09:30:00', '10:00:00', '10:30:00', '11:00:00', '14:00:00', '15:00:00'];
+                    for ($d = 1; $d <= 7; $d++) {
+                        foreach ($slotTimes as $st) {
+                            $conn->exec("INSERT IGNORE INTO availability_slots (laboratory_id, slot_date, slot_time, max_bookings, current_bookings, status) 
+                                         VALUES ({$rl['id']}, DATE_ADD(CURDATE(), INTERVAL {$d} DAY), '{$st}', 3, 0, 'available')");
+                        }
+                    }
+                }
+
+                // Seed laboratory analyses
+                $prices = [
+                    1 => 800, 2 => 400, 3 => 600, 4 => 800, 5 => 400, 6 => 1500, 7 => 1400,
+                    8 => 1000, 9 => 1600, 10 => 600, 11 => 1200, 12 => 1800, 13 => 2800, 14 => 2000, 15 => 800, 16 => 1200
+                ];
+                foreach ($prices as $aId => $pr) {
+                    $conn->exec("INSERT IGNORE INTO laboratory_analyses (laboratory_id, analysis_id, price, turnaround_time, status) 
+                                 VALUES ({$rl['id']}, {$aId}, {$pr}, 'خلال 24 ساعة', 'available')");
+                }
+            }
+        } catch (Exception $e) {}
+
         // Add contact_phone column to appointments if not exists (safe cross-version MySQL/MariaDB migration)
         try {
             $hasCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
