@@ -9,6 +9,12 @@ if (isLoggedIn()) {
     else redirect('patient/dashboard.php');
 }
 
+// If accessed from mobile app, avoid showing public landing page
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+if ((isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'dz.labora.app') || str_contains($userAgent, '; wv')) {
+    redirect('auth/login.php');
+}
+
 // Fetch dynamic statistics safely
 $labCount = 0;
 $analysisCount = 0;

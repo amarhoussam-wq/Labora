@@ -136,12 +136,6 @@ $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
     </a>
   </div>
 
-  <div class="text-center mt-3">
-    <a href="<?= BASE_URL ?>index.php" class="small text-lb-muted">
-      <i class="bi bi-arrow-right"></i> العودة للصفحة الرئيسية
-    </a>
-  </div>
-
   <div class="mt-4 p-3 bg-light rounded-3 text-center small text-muted" style="font-size:0.8rem; border: 1px dashed #90caf9;">
     <strong class="text-primary d-block mb-1">بيانات تجريبية سريعة (كلمة المرور: demo123):</strong>
     <div>🏢 <strong>فضاء المخبر:</strong> <code>lab1@labora.dz</code> أو <code>lab2@labora.dz</code></div>

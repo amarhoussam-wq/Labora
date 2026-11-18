@@ -163,12 +163,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       تسجيل الدخول
     </a>
   </div>
-
-  <div class="text-center mt-3">
-    <a href="<?= BASE_URL ?>index.php" class="small text-lb-muted">
-      <i class="bi bi-arrow-right"></i> العودة للصفحة الرئيسية
-    </a>
-  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

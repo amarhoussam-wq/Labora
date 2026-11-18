@@ -1,4 +1,5 @@
-<!-- ── Footer ──────────────────────────────────────────────── -->
+<?php if (!isLoggedIn() || currentUserRole() !== 'patient'): ?>
+<!-- ── Footer (Website Only - Hidden in Patient App) ───────── -->
 <footer class="lb-footer">
   <div class="container">
     <div class="row g-4">
@@ -17,15 +18,9 @@
       <!-- Quick links -->
       <div class="col-lg-2 col-md-3 col-6">
         <h6>روابط سريعة</h6>
-        <?php if (isLoggedIn() && currentUserRole() === 'patient'): ?>
-          <a href="<?= BASE_URL ?>patient/dashboard.php">لوحة التحكم</a>
-          <a href="<?= BASE_URL ?>patient/book.php">حجز موعد</a>
-          <a href="<?= BASE_URL ?>patient/appointments.php">مواعيدي المحجوزة</a>
-        <?php else: ?>
-          <a href="<?= BASE_URL ?>index.php">الرئيسية</a>
-          <a href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
-          <a href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
-        <?php endif; ?>
+        <a href="<?= BASE_URL ?>index.php">الرئيسية</a>
+        <a href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
+        <a href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
       </div>
 
       <!-- Account links -->
@@ -34,10 +29,6 @@
         <?php if (!isLoggedIn()): ?>
           <a href="<?= BASE_URL ?>auth/login.php">تسجيل الدخول</a>
           <a href="<?= BASE_URL ?>auth/register.php">إنشاء حساب</a>
-        <?php elseif (currentUserRole() === 'patient'): ?>
-          <a href="<?= BASE_URL ?>patient/dashboard.php">لوحتي</a>
-          <a href="<?= BASE_URL ?>patient/appointments.php">مواعيدي</a>
-          <a href="<?= BASE_URL ?>auth/logout.php">تسجيل الخروج</a>
         <?php elseif (currentUserRole() === 'lab_manager'): ?>
           <a href="<?= BASE_URL ?>lab/dashboard.php">لوحة المخبر</a>
           <a href="<?= BASE_URL ?>auth/logout.php">تسجيل الخروج</a>
@@ -67,6 +58,7 @@
     </div>
   </div><!-- /.container -->
 </footer>
+<?php endif; ?>
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
