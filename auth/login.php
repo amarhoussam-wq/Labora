@@ -136,12 +136,7 @@ $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
     </a>
   </div>
 
-  <div class="mt-4 p-3 bg-light rounded-3 text-center small text-muted" style="font-size:0.8rem; border: 1px dashed #90caf9;">
-    <strong class="text-primary d-block mb-1">بيانات تجريبية سريعة (كلمة المرور: demo123):</strong>
-    <div>🏢 <strong>فضاء المخبر:</strong> <code>lab1@labora.dz</code> أو <code>lab2@labora.dz</code></div>
-    <div>👤 <strong>حساب المريض:</strong> <code>patient@labora.dz</code></div>
-  </div>
-</div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
