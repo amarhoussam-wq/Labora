@@ -1,6 +1,14 @@
 <?php
 require_once 'config.php';
 
+// Redirect logged-in users away from public homepage
+if (isLoggedIn()) {
+    $role = currentUserRole();
+    if ($role === 'lab_manager') redirect('lab/dashboard.php');
+    elseif ($role === 'admin') redirect('admin/dashboard.php');
+    else redirect('patient/dashboard.php');
+}
+
 // Fetch dynamic statistics safely
 $labCount = 0;
 $analysisCount = 0;

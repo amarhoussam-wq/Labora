@@ -57,18 +57,18 @@ CREATE TABLE `availability_slots` (
   FOREIGN KEY (`laboratory_id`) REFERENCES `laboratories`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Generate demo slots for today & next days
+-- Generate demo slots for upcoming days
 INSERT INTO `availability_slots` (`laboratory_id`, `slot_date`, `slot_time`, `max_bookings`, `current_bookings`, `status`) VALUES
-(1, CURDATE(), '08:00:00', 2, 0, 'available'),
-(1, CURDATE(), '09:00:00', 2, 1, 'available'),
-(1, CURDATE(), '10:00:00', 2, 0, 'available'),
-(1, CURDATE(), '11:00:00', 2, 0, 'available'),
 (1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:30:00', 2, 0, 'available'),
-(1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '09:30:00', 2, 0, 'available'),
+(1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '09:30:00', 2, 1, 'available'),
 (1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '10:30:00', 2, 0, 'available'),
-(2, CURDATE(), '08:00:00', 2, 0, 'available'),
-(2, CURDATE(), '09:00:00', 2, 0, 'available'),
-(2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:30:00', 2, 0, 'available');
+(1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '11:30:00', 2, 0, 'available'),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '08:30:00', 2, 0, 'available'),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '09:30:00', 2, 0, 'available'),
+(1, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '10:30:00', 2, 0, 'available'),
+(2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '08:00:00', 2, 0, 'available'),
+(2, DATE_ADD(CURDATE(), INTERVAL 1 DAY), '09:00:00', 2, 0, 'available'),
+(2, DATE_ADD(CURDATE(), INTERVAL 2 DAY), '08:30:00', 2, 0, 'available');
 
 -- 4. Appointments Table
 DROP TABLE IF EXISTS `appointments`;

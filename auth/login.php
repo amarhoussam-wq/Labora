@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     loginUser($user, $labId);
 
                     $redirectUrl = trim($_POST['redirect'] ?? $_GET['redirect'] ?? '');
-                    if ($redirectUrl && str_starts_with($redirectUrl, '/')) {
+                    if ($redirectUrl && str_starts_with($redirectUrl, '/') && !in_array($redirectUrl, ['/', '/index.php', '/auth/login.php', '/auth/register.php'], true)) {
                         header('Location: ' . $redirectUrl);
                         exit;
                     }
