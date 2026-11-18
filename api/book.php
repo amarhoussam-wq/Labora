@@ -96,23 +96,65 @@ try {
         exit;
     }
 
-    // Insert Appointment
-    $ins = $conn->prepare("
-        INSERT INTO appointments 
-        (patient_id, laboratory_id, slot_id, appointment_date, appointment_time, analyses_text, prescription_file, notes, contact_phone, status) 
-        VALUES (:pid, :lid, :sid, :dt, :tm, :an, :rx, :nt, :ph, 'pending')
-    ");
-    $ins->execute([
-        ':pid' => $patient_id,
-        ':lid' => $laboratory_id,
-        ':sid' => $slot_id,
-        ':dt'  => $slot['slot_date'],
-        ':tm'  => $slot['slot_time'],
-        ':an'  => $analyses_text,
-        ':rx'  => $uploaded_filename,
-        ':nt'  => $notes ?: null,
-        ':ph'  => $patient_phone
-    ]);
+    // Auto-migrate contact_phone column if not yet present in database
+    $hasContactPhoneCol = true;
+    try {
+        $chkCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
+        if (!$chkCol) {
+            $conn->exec("ALTER TABLE `appointments` ADD `contact_phone` VARCHAR(20) DEFAULT NULL AFTER `notes`");
+        }
+    } catch (Exception $colEx) {
+        try {
+            $chkCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
+            $hasContactPhoneCol = !empty($chkCol);
+        } catch (Exception $e2) {
+            $hasContactPhoneCol = false;
+        }
+    }
+
+    // Also update patient profile phone if empty
+    if ($patient_phone && $patient_id) {
+        try {
+            $conn->prepare("UPDATE users SET phone = :ph WHERE id = :uid AND (phone IS NULL OR phone = '')")->execute([':ph' => $patient_phone, ':uid' => $patient_id]);
+        } catch (Exception $e) {}
+    }
+
+    // Insert Appointment safely with or without column
+    if ($hasContactPhoneCol) {
+        $ins = $conn->prepare("
+            INSERT INTO appointments 
+            (patient_id, laboratory_id, slot_id, appointment_date, appointment_time, analyses_text, prescription_file, notes, contact_phone, status) 
+            VALUES (:pid, :lid, :sid, :dt, :tm, :an, :rx, :nt, :ph, 'pending')
+        ");
+        $ins->execute([
+            ':pid' => $patient_id,
+            ':lid' => $laboratory_id,
+            ':sid' => $slot_id,
+            ':dt'  => $slot['slot_date'],
+            ':tm'  => $slot['slot_time'],
+            ':an'  => $analyses_text,
+            ':rx'  => $uploaded_filename,
+            ':nt'  => $notes ?: null,
+            ':ph'  => $patient_phone
+        ]);
+    } else {
+        $notesWithPhone = ($notes ? $notes . " | " : "") . "هاتف التواصل: " . $patient_phone;
+        $ins = $conn->prepare("
+            INSERT INTO appointments 
+            (patient_id, laboratory_id, slot_id, appointment_date, appointment_time, analyses_text, prescription_file, notes, status) 
+            VALUES (:pid, :lid, :sid, :dt, :tm, :an, :rx, :nt, 'pending')
+        ");
+        $ins->execute([
+            ':pid' => $patient_id,
+            ':lid' => $laboratory_id,
+            ':sid' => $slot_id,
+            ':dt'  => $slot['slot_date'],
+            ':tm'  => $slot['slot_time'],
+            ':an'  => $analyses_text,
+            ':rx'  => $uploaded_filename,
+            ':nt'  => $notesWithPhone
+        ]);
+    }
     $appointment_id = (int)$conn->lastInsertId();
 
     // Increment slot bookings

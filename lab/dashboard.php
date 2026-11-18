@@ -81,12 +81,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['purge_outdated_slots'
     }
 }
 
+// Ensure contact_phone column exists safely
+$hasContactCol = true;
+try {
+    $chkCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
+    if (!$chkCol) {
+        $conn->exec("ALTER TABLE `appointments` ADD `contact_phone` VARCHAR(20) DEFAULT NULL AFTER `notes`");
+    }
+} catch (Exception $e) {
+    try {
+        $chkCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
+        $hasContactCol = !empty($chkCol);
+    } catch (Exception $e2) {
+        $hasContactCol = false;
+    }
+}
+
 // Fetch Appointments strictly for this lab
 $status_filter = trim($_GET['status'] ?? '');
+$phoneExpr = $hasContactCol ? "COALESCE(a.contact_phone, u.phone)" : "u.phone";
 $sql = "
     SELECT a.*, 
            u.first_name, u.last_name, 
-           COALESCE(a.contact_phone, u.phone) AS patient_phone,
+           {$phoneExpr} AS patient_phone,
            u.email AS patient_email
     FROM appointments a
     LEFT JOIN users u ON u.id = a.patient_id

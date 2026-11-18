@@ -117,9 +117,12 @@ try {
                 (3, 8, 1000), (3, 12, 1800), (3, 13, 2800), (3, 15, 800);
             ");
         }
-        // Add contact_phone column to appointments if not exists (non-breaking migration)
+        // Add contact_phone column to appointments if not exists (safe cross-version MySQL/MariaDB migration)
         try {
-            $conn->exec("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(20) DEFAULT NULL AFTER notes");
+            $hasCol = $conn->query("SHOW COLUMNS FROM `appointments` LIKE 'contact_phone'")->fetch();
+            if (!$hasCol) {
+                $conn->exec("ALTER TABLE `appointments` ADD `contact_phone` VARCHAR(20) DEFAULT NULL AFTER `notes`");
+            }
         } catch (Exception $e) {}
     } catch (Exception $e) {}
 } catch (Exception $e) {
