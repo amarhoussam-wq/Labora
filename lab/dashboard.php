@@ -3,26 +3,52 @@ require_once dirname(__DIR__) . '/config.php';
 requireRole('lab_manager', 'admin');
 
 $userId = currentUserId();
-$lab_id = currentLabId();
 
-// If lab manager has no laboratory assigned yet, fetch from DB
-if (!$lab_id) {
+// Fetch all active laboratories
+$allLabs = $conn->query("SELECT id, name, city, address FROM laboratories WHERE status='active' ORDER BY id ASC")->fetchAll();
+
+// Determine which laboratory is currently selected (with quick URL switch support)
+if (isset($_GET['lab_id'])) {
+    if ($_GET['lab_id'] === 'all') {
+        $lab_id = 'all';
+    } else {
+        $lab_id = (int)$_GET['lab_id'];
+    }
+    $_SESSION['lab_id'] = $lab_id;
+} else {
+    // If lab manager has an assigned laboratory, use it
     $stmt = $conn->prepare("SELECT id FROM laboratories WHERE manager_id = :uid LIMIT 1");
     $stmt->execute([':uid' => $userId]);
     $labRow = $stmt->fetch();
-    $lab_id = $labRow ? (int)$labRow['id'] : 1; // fallback to lab 1 for demo
-    $_SESSION['lab_id'] = $lab_id;
+    if ($labRow) {
+        $lab_id = (int)$labRow['id'];
+        $_SESSION['lab_id'] = $lab_id;
+    } else {
+        // Fallback to session or lab 2 (مخبر الشفاء المركزي)
+        $lab_id = $_SESSION['lab_id'] ?? 2;
+    }
 }
 
 // Fetch Laboratory Info
-$lStmt = $conn->prepare("SELECT * FROM laboratories WHERE id = :lid LIMIT 1");
-$lStmt->execute([':lid' => $lab_id]);
-$lab = $lStmt->fetch();
+if ($lab_id === 'all') {
+    $lab = ['id' => 'all', 'name' => 'جميع المخابر المعتمدة (عرض شامل)', 'city' => 'كل المدن'];
+} else {
+    $lStmt = $conn->prepare("SELECT * FROM laboratories WHERE id = :lid LIMIT 1");
+    $lStmt->execute([':lid' => (int)$lab_id]);
+    $lab = $lStmt->fetch();
+    if (!$lab && !empty($allLabs)) {
+        $lab = $allLabs[0];
+        $lab_id = (int)$lab['id'];
+        $_SESSION['lab_id'] = $lab_id;
+    }
+}
 
 // Automatically purge expired past slots (prior to today) with no active appointments
-try {
-    $conn->prepare("DELETE FROM availability_slots WHERE laboratory_id = :lid AND slot_date < CURDATE() AND current_bookings = 0")->execute([':lid' => $lab_id]);
-} catch (Exception $e) {}
+if ($lab_id !== 'all') {
+    try {
+        $conn->prepare("DELETE FROM availability_slots WHERE laboratory_id = :lid AND slot_date < CURDATE() AND current_bookings = 0")->execute([':lid' => (int)$lab_id]);
+    } catch (Exception $e) {}
+}
 
 // Handle New Slot Creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_slot'])) {
@@ -76,15 +102,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['purge_outdated_slots'
     }
 }
 
-// Fetch Appointments for this lab
+// Fetch Appointments for this lab or all labs
 $status_filter = trim($_GET['status'] ?? '');
 $sql = "
-    SELECT a.*, u.first_name, u.last_name, u.phone AS patient_phone, u.email AS patient_email
+    SELECT a.*, 
+           u.first_name, u.last_name, 
+           u.phone AS patient_phone, u.email AS patient_email,
+           l.name AS laboratory_name, l.city AS laboratory_city
     FROM appointments a
-    JOIN users u ON u.id = a.patient_id
-    WHERE a.laboratory_id = :lid
+    LEFT JOIN users u ON u.id = a.patient_id
+    LEFT JOIN laboratories l ON l.id = a.laboratory_id
+    WHERE 1=1
 ";
-$params = [':lid' => $lab_id];
+$params = [];
+if ($lab_id !== 'all') {
+    $sql .= " AND a.laboratory_id = :lid";
+    $params[':lid'] = (int)$lab_id;
+}
 if (in_array($status_filter, ['pending', 'accepted', 'rejected', 'cancelled'], true)) {
     $sql .= " AND a.status = :st";
     $params[':st'] = $status_filter;
@@ -95,26 +129,36 @@ $aStmt->execute($params);
 $appointments = $aStmt->fetchAll();
 
 // Counts for statistics
-$countStmt = $conn->prepare("
+$countSql = "
     SELECT 
       COUNT(*) AS total,
       SUM(status = 'pending') AS pending_cnt,
       SUM(status = 'accepted') AS accepted_cnt,
       SUM(status = 'rejected') AS rejected_cnt
-    FROM appointments WHERE laboratory_id = :lid
-");
-$countStmt->execute([':lid' => $lab_id]);
+    FROM appointments
+";
+if ($lab_id !== 'all') {
+    $countSql .= " WHERE laboratory_id = :lid";
+    $countStmt = $conn->prepare($countSql);
+    $countStmt->execute([':lid' => (int)$lab_id]);
+} else {
+    $countStmt = $conn->prepare($countSql);
+    $countStmt->execute();
+}
 $stats = $countStmt->fetch();
 
 // Fetch future active slots for display (starting from today onwards)
-$slotsStmt = $conn->prepare("
-    SELECT * FROM availability_slots 
-    WHERE laboratory_id = :lid AND slot_date >= CURDATE()
-    ORDER BY slot_date ASC, slot_time ASC 
-    LIMIT 30
-");
-$slotsStmt->execute([':lid' => $lab_id]);
-$slots = $slotsStmt->fetchAll();
+$slots = [];
+if ($lab_id !== 'all') {
+    $slotsStmt = $conn->prepare("
+        SELECT * FROM availability_slots 
+        WHERE laboratory_id = :lid AND slot_date >= CURDATE()
+        ORDER BY slot_date ASC, slot_time ASC 
+        LIMIT 30
+    ");
+    $slotsStmt->execute([':lid' => (int)$lab_id]);
+    $slots = $slotsStmt->fetchAll();
+}
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -415,10 +459,38 @@ $slots = $slotsStmt->fetchAll();
         <span class="dash-brand-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span class="fw-900 fs-5 tracking-tight">LABORA</span>
       </a>
-      <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-10 px-3 py-1.5 rounded-pill fw-600 fs-7 d-none d-sm-inline-flex align-items-center gap-1.5">
-        <i class="bi bi-hospital text-info"></i>
-        <?= h($lab['name'] ?? 'مخبر التحاليل الطبية') ?>
-      </span>
+      <!-- Laboratory Switcher Dropdown -->
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-light dropdown-toggle rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.82rem; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3);">
+          <i class="bi bi-hospital text-info"></i>
+          <span><?= h($lab['name'] ?? 'مخبر التحاليل الطبية') ?></span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-lg rounded-4 p-2 border-0" style="min-width: 270px; z-index: 1060;">
+          <li><h6 class="dropdown-header text-primary fw-bold px-2 mb-1"><i class="bi bi-arrow-left-right me-1"></i> اختر لوحة المخبر:</h6></li>
+          <?php foreach ($allLabs as $l): ?>
+            <li>
+              <a class="dropdown-item rounded-3 py-2 px-2.5 d-flex justify-content-between align-items-center mb-1 <?= ((string)$lab_id === (string)$l['id']) ? 'active fw-bold' : '' ?>" href="?lab_id=<?= (int)$l['id'] ?>">
+                <div>
+                  <div class="fw-bold" style="font-size:0.85rem;"><?= h($l['name']) ?></div>
+                  <small class="text-muted" style="font-size:0.75rem;"><i class="bi bi-geo-alt"></i> <?= h($l['city']) ?></small>
+                </div>
+                <?php if ((string)$lab_id === (string)$l['id']): ?>
+                  <i class="bi bi-check-circle-fill text-white ms-2"></i>
+                <?php endif; ?>
+              </a>
+            </li>
+          <?php endforeach; ?>
+          <li><hr class="dropdown-divider my-1"></li>
+          <li>
+            <a class="dropdown-item rounded-3 py-2 px-2.5 d-flex justify-content-between align-items-center <?= ($lab_id === 'all') ? 'active fw-bold' : '' ?>" href="?lab_id=all">
+              <span class="fw-bold" style="font-size:0.85rem;"><i class="bi bi-grid-fill me-1 text-warning"></i> عرض جميع المخابر معاً</span>
+              <?php if ($lab_id === 'all'): ?>
+                <i class="bi bi-check-circle-fill text-white ms-2"></i>
+              <?php endif; ?>
+            </a>
+          </li>
+        </ul>
+      </div>
     </div>
 
     <div class="d-flex align-items-center gap-3">
@@ -451,7 +523,19 @@ $slots = $slotsStmt->fetchAll();
       <h4 class="fw-800 text-dark mb-1">لوحة إدارة المواعيد والتحاليل</h4>
       <p class="text-muted small mb-0">متابعة دقيقة وفورية لحجوزات المرضى وتنظيم الفترات الزمنية للمخبر</p>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <!-- Quick Lab Switcher Pills -->
+      <div class="btn-group btn-group-sm rounded-pill shadow-sm bg-white p-1 border">
+        <a href="?lab_id=2" class="btn btn-sm rounded-pill px-3 fw-bold <?= ((string)$lab_id === '2') ? 'btn-primary' : 'btn-light text-dark' ?>">
+          🏢 مخبر الشفاء (وهران)
+        </a>
+        <a href="?lab_id=1" class="btn btn-sm rounded-pill px-3 fw-bold <?= ((string)$lab_id === '1') ? 'btn-primary' : 'btn-light text-dark' ?>">
+          🏢 مخبر ابن سينا (الجزائر)
+        </a>
+        <a href="?lab_id=all" class="btn btn-sm rounded-pill px-3 fw-bold <?= ($lab_id === 'all') ? 'btn-primary' : 'btn-light text-dark' ?>">
+          🌐 الكل
+        </a>
+      </div>
       <span class="badge bg-white text-muted border px-3 py-2 rounded-pill small">
         <i class="bi bi-calendar-event text-primary ms-1"></i>
         <?= date('Y-m-d') ?>
@@ -529,10 +613,10 @@ $slots = $slotsStmt->fetchAll();
 
           <!-- Segmented Filter Control -->
           <div class="filter-pill-nav">
-            <a href="?status=" class="filter-pill-link <?= empty($status_filter) ? 'active' : '' ?>">الكل (<?= (int)($stats['total'] ?? 0) ?>)</a>
-            <a href="?status=pending" class="filter-pill-link <?= $status_filter === 'pending' ? 'active' : '' ?>">قيد الانتظار (<?= (int)($stats['pending_cnt'] ?? 0) ?>)</a>
-            <a href="?status=accepted" class="filter-pill-link <?= $status_filter === 'accepted' ? 'active' : '' ?>">المقبولة (<?= (int)($stats['accepted_cnt'] ?? 0) ?>)</a>
-            <a href="?status=rejected" class="filter-pill-link <?= $status_filter === 'rejected' ? 'active' : '' ?>">المرفوضة</a>
+            <a href="?status=&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= empty($status_filter) ? 'active' : '' ?>">الكل (<?= (int)($stats['total'] ?? 0) ?>)</a>
+            <a href="?status=pending&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'pending' ? 'active' : '' ?>">قيد الانتظار (<?= (int)($stats['pending_cnt'] ?? 0) ?>)</a>
+            <a href="?status=accepted&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'accepted' ? 'active' : '' ?>">المقبولة (<?= (int)($stats['accepted_cnt'] ?? 0) ?>)</a>
+            <a href="?status=rejected&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'rejected' ? 'active' : '' ?>">المرفوضة</a>
           </div>
         </div>
 
@@ -577,6 +661,7 @@ $slots = $slotsStmt->fetchAll();
                   </div>
 
                   <div class="d-flex align-items-center gap-2 text-muted small mb-2 flex-wrap">
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1"><i class="bi bi-hospital me-1"></i><?= h($apt['laboratory_name'] ?? 'مخبر الشفاء') ?></span>
                     <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-calendar3 me-1 text-primary"></i><?= h($apt['appointment_date']) ?></span>
                     <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-clock me-1 text-primary"></i><?= substr($apt['appointment_time'], 0, 5) ?></span>
                     <?php if (!empty($apt['prescription_file'])): ?>
@@ -671,6 +756,11 @@ $slots = $slotsStmt->fetchAll();
                               <a href="tel:<?= h($apt['patient_phone']) ?>" class="text-decoration-none text-muted small">
                                 <i class="bi bi-telephone ms-1 text-primary"></i><?= h($apt['patient_phone'] ?: '—') ?>
                               </a>
+                            </div>
+                            <div class="mt-1">
+                              <span class="badge bg-light text-primary border px-2 py-0.5 rounded-pill small" style="font-size:0.72rem;">
+                                <i class="bi bi-hospital me-1"></i><?= h($apt['laboratory_name'] ?? 'مخبر الشفاء') ?>
+                              </span>
                             </div>
                           </div>
                         </div>

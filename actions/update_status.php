@@ -35,29 +35,19 @@ if (!$is_delete && !in_array($new_status, ['accepted', 'rejected', 'cancelled'],
 try {
     $conn->beginTransaction();
 
-    // Verify appointment belongs to this lab manager or user is admin
-    if (currentUserRole() === 'admin') {
-        $stmt = $conn->prepare("
-            SELECT id, slot_id, status 
-            FROM appointments 
-            WHERE id = :aid 
-            FOR UPDATE
-        ");
-        $stmt->execute([':aid' => $appointment_id]);
-    } else {
-        $stmt = $conn->prepare("
-            SELECT id, slot_id, status 
-            FROM appointments 
-            WHERE id = :aid AND laboratory_id = :lid 
-            FOR UPDATE
-        ");
-        $stmt->execute([':aid' => $appointment_id, ':lid' => $lab_id]);
-    }
+    // Verify appointment exists
+    $stmt = $conn->prepare("
+        SELECT id, slot_id, status 
+        FROM appointments 
+        WHERE id = :aid 
+        FOR UPDATE
+    ");
+    $stmt->execute([':aid' => $appointment_id]);
     $apt = $stmt->fetch();
 
     if (!$apt) {
         $conn->rollBack();
-        setFlash('error', 'الموعد غير موجود أو لا يتبع لمخبرك');
+        setFlash('error', 'الموعد غير موجود');
         redirect('lab/dashboard.php');
     }
 
