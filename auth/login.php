@@ -55,16 +55,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
 $roleParam   = $_GET['role'] ?? $_POST['role'] ?? '';
 
-// Google login is shown ONLY for patient login & mobile app
-$isMobileApp = isset($_SERVER['HTTP_USER_AGENT']) && (
-    str_contains($_SERVER['HTTP_USER_AGENT'], 'LaboraApp') ||
-    str_contains($_SERVER['HTTP_USER_AGENT'], 'Android') ||
-    str_contains($_SERVER['HTTP_USER_AGENT'], 'Mobile')
-);
-
+// Google login is shown ONLY for patient flow & mobile app
 $showGoogleLogin = ($roleParam === 'patient') 
                 || (str_contains($redirectVal, 'patient')) 
-                || ($isMobileApp && $roleParam !== 'lab' && !str_contains($redirectVal, 'lab'));
+                || (isset($_SERVER['HTTP_USER_AGENT']) && str_contains($_SERVER['HTTP_USER_AGENT'], 'LaboraApp'));
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">

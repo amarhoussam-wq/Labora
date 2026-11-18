@@ -100,6 +100,7 @@ public class MainActivity extends Activity implements DialogInterface.OnClickLis
         settings.setLoadWithOverviewMode(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
+        settings.setUserAgentString(settings.getUserAgentString() + " LaboraApp");
 
         webView.setWebViewClient(new LaboraWebViewClient(this, progressBar));
         webView.setWebChromeClient(new LaboraWebChromeClient(this, progressBar));
