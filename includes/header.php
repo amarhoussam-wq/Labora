@@ -129,7 +129,7 @@ function navActive(string ...$patterns): string {
           </li>
           <li class="nav-item">
             <a class="nav-link text-primary fw-bold <?= navActive('lab') ?>"
-               href="<?= BASE_URL ?>auth/login.php?role=lab">
+               href="<?= BASE_URL ?>auth/login.php">
               <i class="bi bi-hospital me-1"></i>فضاء المخبر
             </a>
           </li>
@@ -139,7 +139,7 @@ function navActive(string ...$patterns): string {
       <!-- Auth area (Desktop Only) -->
       <div class="d-none d-lg-flex align-items-center gap-2">
         <?php if (!isLoggedIn()): ?>
-          <a href="<?= BASE_URL ?>auth/login.php" class="btn-nav-signin">تسجيل الدخول</a>
+          <a href="<?= BASE_URL ?>auth/login.php?role=patient" class="btn-nav-signin">تسجيل الدخول</a>
           <a href="<?= BASE_URL ?>auth/register.php" class="btn-nav-register">إنشاء حساب</a>
 
         <?php else: ?>

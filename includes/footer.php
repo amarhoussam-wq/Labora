@@ -27,9 +27,9 @@
       <div class="col-lg-2 col-md-3 col-6">
         <h6>الحساب</h6>
         <?php if (!isLoggedIn()): ?>
-          <a href="<?= BASE_URL ?>auth/login.php">تسجيل الدخول</a>
+          <a href="<?= BASE_URL ?>auth/login.php?role=patient">تسجيل الدخول</a>
           <a href="<?= BASE_URL ?>auth/register.php">إنشاء حساب</a>
-          <a href="<?= BASE_URL ?>auth/login.php?role=lab">فضاء المخبر</a>
+          <a href="<?= BASE_URL ?>auth/login.php">فضاء المخبر</a>
         <?php elseif (currentUserRole() === 'lab_manager'): ?>
           <a href="<?= BASE_URL ?>lab/dashboard.php">لوحة المخبر</a>
           <a href="<?= BASE_URL ?>auth/logout.php">تسجيل الخروج</a>
