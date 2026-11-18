@@ -23,9 +23,15 @@ if (!$laboratory_id || !$slot_id) {
     echo json_encode(['success' => false, 'message' => 'يرجى اختيار المخبر والفترة الزمنية']);
     exit;
 }
+$hasPrescription = (!empty($_FILES['prescription']) && $_FILES['prescription']['error'] === UPLOAD_ERR_OK);
+
 if ($analyses_text === '') {
-    echo json_encode(['success' => false, 'message' => 'يرجى كتابة التحاليل الطبية المطلوبة']);
-    exit;
+    if ($hasPrescription) {
+        $analyses_text = 'فحص وتحاليل حسب الوصفة الطبية المرفقة';
+    } else {
+        echo json_encode(['success' => false, 'message' => 'يرجى تحديد التحاليل من القائمة أو إرفاق صورة الوصفة الطبية']);
+        exit;
+    }
 }
 
 // Handle Prescription File Upload safely
