@@ -28,7 +28,7 @@ public class MainActivity extends Activity implements DialogInterface.OnClickLis
     private static final int FILE_CHOOSER_REQUEST_CODE = 1001;
     private static final String PREFS_NAME = "LaboraPrefs";
     private static final String KEY_SERVER_URL = "server_url";
-    private static final String DEFAULT_URL = "http://10.0.2.2/labora/patient/book.php";
+    private static final String DEFAULT_URL = "https://nwc0s04888ws88gscowcksoc.194.34.232.105.sslip.io/patient/book.php";
     private EditText serverUrlInput;
 
     private static class LaboraWebViewClient extends WebViewClient {

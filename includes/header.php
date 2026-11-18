@@ -45,7 +45,16 @@ function navActive(string ...$patterns): string {
   <div class="container">
 
     <!-- Brand -->
-    <a class="navbar-brand" href="<?= BASE_URL ?>index.php">
+    <?php
+    $brandUrl = BASE_URL . 'index.php';
+    if (isLoggedIn()) {
+        $role = currentUserRole();
+        if ($role === 'patient') $brandUrl = BASE_URL . 'patient/dashboard.php';
+        elseif ($role === 'lab_manager') $brandUrl = BASE_URL . 'lab/dashboard.php';
+        elseif ($role === 'admin') $brandUrl = BASE_URL . 'admin/dashboard.php';
+    }
+    ?>
+    <a class="navbar-brand" href="<?= $brandUrl ?>">
       <span class="brand-icon"><i class="bi bi-clipboard2-pulse"></i></span>
       <span>LABORA</span>
     </a>
@@ -61,31 +70,51 @@ function navActive(string ...$patterns): string {
 
       <!-- Nav links -->
       <ul class="navbar-nav mx-auto gap-1">
-        <li class="nav-item">
-          <a class="nav-link <?= navActive('index.php') ?>"
-             href="<?= BASE_URL ?>index.php">الرئيسية</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link <?= navActive('laboratories', 'laboratory.php') ?>"
-             href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link <?= navActive('analyses.php') ?>"
-             href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link text-primary fw-bold <?= navActive('lab/dashboard') ?>"
-             href="<?= BASE_URL ?>lab/dashboard.php">
-            <i class="bi bi-hospital me-1"></i>فضاء المخبر
-          </a>
-        </li>
         <?php if (isLoggedIn() && currentUserRole() === 'patient'): ?>
-        <li class="nav-item">
-          <a class="nav-link <?= navActive('patient/appointments') ?>"
-             href="<?= BASE_URL ?>patient/appointments.php">
-            <i class="bi bi-calendar-check me-1"></i>مواعيدي
-          </a>
-        </li>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('patient/dashboard.php') ?>"
+               href="<?= BASE_URL ?>patient/dashboard.php">
+              <i class="bi bi-grid me-1"></i>لوحة التحكم
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('patient/book.php') ?>"
+               href="<?= BASE_URL ?>patient/book.php">
+              <i class="bi bi-plus-circle me-1"></i>حجز موعد
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('patient/appointments.php') ?>"
+               href="<?= BASE_URL ?>patient/appointments.php">
+              <i class="bi bi-calendar-check me-1"></i>مواعيدي المحجوزة
+            </a>
+          </li>
+        <?php elseif (isLoggedIn() && currentUserRole() === 'lab_manager'): ?>
+          <li class="nav-item">
+            <a class="nav-link active fw-bold text-primary"
+               href="<?= BASE_URL ?>lab/dashboard.php">
+              <i class="bi bi-hospital me-1"></i>فضاء المخبر
+            </a>
+          </li>
+        <?php else: ?>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('index.php') ?>"
+               href="<?= BASE_URL ?>index.php">الرئيسية</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('laboratories', 'laboratory.php') ?>"
+               href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= navActive('analyses.php') ?>"
+               href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link text-primary fw-bold <?= navActive('lab/dashboard') ?>"
+               href="<?= BASE_URL ?>lab/dashboard.php">
+              <i class="bi bi-hospital me-1"></i>فضاء المخبر
+            </a>
+          </li>
         <?php endif; ?>
       </ul>
 
@@ -110,8 +139,13 @@ function navActive(string ...$patterns): string {
                   </a>
                 </li>
                 <li>
+                  <a class="dropdown-item" href="<?= BASE_URL ?>patient/book.php">
+                    <i class="bi bi-plus-circle me-2 text-primary"></i>حجز موعد جديد
+                  </a>
+                </li>
+                <li>
                   <a class="dropdown-item" href="<?= BASE_URL ?>patient/appointments.php">
-                    <i class="bi bi-calendar-check me-2 text-primary"></i>مواعيدي
+                    <i class="bi bi-calendar-check me-2 text-primary"></i>مواعيدي المحجوزة
                   </a>
                 </li>
               <?php elseif (currentUserRole() === 'lab_manager'): ?>

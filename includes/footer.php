@@ -17,9 +17,15 @@
       <!-- Quick links -->
       <div class="col-lg-2 col-md-3 col-6">
         <h6>روابط سريعة</h6>
-        <a href="<?= BASE_URL ?>index.php">الرئيسية</a>
-        <a href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
-        <a href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
+        <?php if (isLoggedIn() && currentUserRole() === 'patient'): ?>
+          <a href="<?= BASE_URL ?>patient/dashboard.php">لوحة التحكم</a>
+          <a href="<?= BASE_URL ?>patient/book.php">حجز موعد</a>
+          <a href="<?= BASE_URL ?>patient/appointments.php">مواعيدي المحجوزة</a>
+        <?php else: ?>
+          <a href="<?= BASE_URL ?>index.php">الرئيسية</a>
+          <a href="<?= BASE_URL ?>laboratories.php">المخابر الطبية</a>
+          <a href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
+        <?php endif; ?>
       </div>
 
       <!-- Account links -->
