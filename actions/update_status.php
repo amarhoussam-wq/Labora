@@ -12,6 +12,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 $appointment_id = (int)($_POST['appointment_id'] ?? 0);
+$action         = trim($_POST['action'] ?? '');
 $new_status     = trim($_POST['status'] ?? '');
 $reason         = trim($_POST['rejection_reason'] ?? '');
 $lab_id         = currentLabId();
@@ -24,7 +25,9 @@ if (!$lab_id) {
     $_SESSION['lab_id'] = $lab_id;
 }
 
-if (!in_array($new_status, ['accepted', 'rejected', 'cancelled'], true)) {
+$is_delete = ($action === 'delete' || $new_status === 'delete' || $new_status === 'deleted');
+
+if (!$is_delete && !in_array($new_status, ['accepted', 'rejected', 'cancelled'], true)) {
     setFlash('error', 'إجراء غير صالح');
     redirect('lab/dashboard.php');
 }
@@ -58,7 +61,28 @@ try {
         redirect('lab/dashboard.php');
     }
 
-    // Update appointment status
+    // ── Handle Delete Action ──────────────────────────────────
+    if ($is_delete) {
+        // Free up slot capacity if slot was reserved
+        if (!empty($apt['slot_id']) && in_array($apt['status'], ['pending', 'accepted'], true)) {
+            $relSlot = $conn->prepare("
+                UPDATE availability_slots 
+                SET current_bookings = GREATEST(current_bookings - 1, 0),
+                    status = 'available' 
+                WHERE id = :sid
+            ");
+            $relSlot->execute([':sid' => $apt['slot_id']]);
+        }
+
+        $del = $conn->prepare("DELETE FROM appointments WHERE id = :aid");
+        $del->execute([':aid' => $appointment_id]);
+
+        $conn->commit();
+        setFlash('success', 'تم حذف الموعد نهائياً بنجاح.');
+        redirect('lab/dashboard.php');
+    }
+
+    // ── Handle Status Update ──────────────────────────────────
     $upd = $conn->prepare("
         UPDATE appointments 
         SET status = :st, rejection_reason = :rr 

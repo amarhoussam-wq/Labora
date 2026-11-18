@@ -76,85 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['purge_outdated_slots'
     }
 }
 
-// Handle Creation of Demo Appointment for Presentation & Testing
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_demo_appointment'])) {
-    if (verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $pStmt = $conn->prepare("SELECT id FROM users WHERE role = 'patient' ORDER BY id ASC LIMIT 1");
-        $pStmt->execute();
-        $patientId = $pStmt->fetchColumn();
-        if (!$patientId) {
-            $insP = $conn->prepare("INSERT INTO users (first_name, last_name, email, phone, password_hash, role) VALUES ('سمير', 'المريض', 'patient@labora.dz', '0661998877', '$2y$10$X782bI.ARiQe0oNSu0Txf.LO5JOlqfELMc/ecA5zTpRS77niKfNQi', 'patient')");
-            $insP->execute();
-            $patientId = $conn->lastInsertId();
-        }
-
-        $names = [
-            ['tests' => "NFS - تحليل الدم الشامل (FNS)\nGlycémie à jeun - قياس سكر الدم", 'notes' => 'المريض صائم ويطلب إجراء الفحص صباحاً'],
-            ['tests' => "Bilan Lipidique - الكوليسترول والدهون\nCréatinine - وظائف الكلى", 'notes' => 'متابعة دورية للتحاليل'],
-            ['tests' => "TSH - هرمون الغدة الدرقية\nVitamine D - فيتامين د", 'notes' => 'يوجد وصفة طبية من الطبيب المعالج'],
-            ['tests' => "CRP - بروتين الالتهاب\nECBU - فحص وزرع البول", 'notes' => 'طلب تحليل مستعجل']
-        ];
-        $pick = $names[array_rand($names)];
-        $today = date('Y-m-d');
-        $randomHour = rand(8, 15);
-        $randomMin = ['00', '15', '30', '45'][array_rand(['00', '15', '30', '45'])];
-        $time = sprintf('%02d:%s:00', $randomHour, $randomMin);
-
-        $insApt = $conn->prepare("
-            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
-            VALUES (:pid, :lid, :ad, :at, :ant, :nt, 'pending', NOW())
-        ");
-        $insApt->execute([
-            ':pid' => $patientId,
-            ':lid' => $lab_id,
-            ':ad'  => $today,
-            ':at'  => $time,
-            ':ant' => $pick['tests'],
-            ':nt'  => $pick['notes']
-        ]);
-
-        setFlash('success', 'تمت إضافة طلب موعد جديد بنجاح! يمكنك الآن تجربة أزرار القبول، الرفض مع سبب، أو الإلغاء.');
-        redirect('lab/dashboard.php');
-    }
-}
-
-// Auto-seed if total appointments for this lab is zero so the table is never blank for the jury/demo
-try {
-    $checkCount = $conn->prepare("SELECT COUNT(*) FROM appointments WHERE laboratory_id = :lid");
-    $checkCount->execute([':lid' => $lab_id]);
-    $totalForLab = (int)$checkCount->fetchColumn();
-
-    if ($totalForLab === 0) {
-        $pStmt = $conn->prepare("SELECT id FROM users WHERE role = 'patient' ORDER BY id ASC LIMIT 1");
-        $pStmt->execute();
-        $pid = $pStmt->fetchColumn();
-        if (!$pid) {
-            $conn->prepare("INSERT INTO users (first_name, last_name, email, phone, password_hash, role) VALUES ('سمير', 'المريض', 'patient@labora.dz', '0661998877', '$2y$10$X782bI.ARiQe0oNSu0Txf.LO5JOlqfELMc/ecA5zTpRS77niKfNQi', 'patient')")->execute();
-            $pid = $conn->lastInsertId();
-        }
-        $today = date('Y-m-d');
-        $tomorrow = date('Y-m-d', strtotime('+1 day'));
-
-        // 1. Pending (test accept & reject)
-        $conn->prepare("
-            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
-            VALUES (:pid, :lid, :dt, '09:00:00', 'NFS - تحليل الدم الشامل\nGlycémie à jeun - قياس سكر الدم', 'المريض يحتاج لإجراء التحليل صائماً في الصباح الباكر', 'pending', NOW())
-        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $today]);
-
-        // 2. Accepted (test cancel)
-        $conn->prepare("
-            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
-            VALUES (:pid, :lid, :dt, '10:30:00', 'Bilan Lipidique - الكوليسترول والدهون الثلاثية\nCréatinine - وظائف الكلى', 'تم التحقق من الوصفة الطبية وتأكيد الحجز', 'accepted', NOW())
-        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $tomorrow]);
-
-        // 3. Rejected (test reason badge)
-        $conn->prepare("
-            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, rejection_reason, created_at)
-            VALUES (:pid, :lid, :dt, '08:30:00', 'ECBU - فحص وزرع البول', 'طلب تحليل مستعجل', 'rejected', 'الفترة الزمنية ممتلئة بالكامل في هذا التوقيت', NOW())
-        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $today]);
-    }
-} catch (Exception $e) {}
-
 // Fetch Appointments for this lab
 $status_filter = trim($_GET['status'] ?? '');
 $sql = "
@@ -530,15 +451,7 @@ $slots = $slotsStmt->fetchAll();
       <h4 class="fw-800 text-dark mb-1">لوحة إدارة المواعيد والتحاليل</h4>
       <p class="text-muted small mb-0">متابعة دقيقة وفورية لحجوزات المرضى وتنظيم الفترات الزمنية للمخبر</p>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <form method="POST" action="" class="m-0">
-        <?= csrfField() ?>
-        <input type="hidden" name="create_demo_appointment" value="1">
-        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 py-2 fw-bold shadow-sm d-inline-flex align-items-center gap-1.5" title="إضافة موعد تجريبي فوراً لاختبار القبول والرفض">
-          <i class="bi bi-plus-circle-fill"></i>
-          <span>➕ إضافة موعد تجريبي للتجربة</span>
-        </button>
-      </form>
+    <div class="d-flex align-items-center gap-2">
       <span class="badge bg-white text-muted border px-3 py-2 rounded-pill small">
         <i class="bi bi-calendar-event text-primary ms-1"></i>
         <?= date('Y-m-d') ?>
@@ -630,17 +543,108 @@ $slots = $slotsStmt->fetchAll();
                 <i class="bi bi-inbox text-secondary" style="font-size: 3rem; opacity: 0.4;"></i>
               </div>
               <h6 class="fw-bold text-dark">لا توجد طلبات مواعيد ضمن هذه الفئة</h6>
-              <p class="small text-muted mb-3">يمكنك إضافة موعد تجريبي فوراً لاختبار ميزات القبول والرفض وتحديد الأسباب.</p>
-              <form method="POST" action="" class="d-inline-block">
-                <?= csrfField() ?>
-                <input type="hidden" name="create_demo_appointment" value="1">
-                <button type="submit" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">
-                  <i class="bi bi-plus-circle-fill ms-1"></i> إضافة موعد تجريبي الآن للتجربة
-                </button>
-              </form>
+              <p class="small text-muted mb-0">ستظهر طلبات المواعيد الجديدة فور قيام المرضى بالحجز عبر التطبيق.</p>
             </div>
           <?php else: ?>
-            <div class="table-responsive">
+
+            <!-- ── Mobile View: Cards (< 768px) ── -->
+            <div class="d-md-none">
+              <?php foreach ($appointments as $apt): 
+                $patientInitials = mb_substr($apt['first_name'] ?? 'م', 0, 1, 'UTF-8');
+              ?>
+                <div class="p-3 border-bottom bg-white">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="patient-avatar"><?= h($patientInitials) ?></div>
+                      <div>
+                        <div class="fw-bold text-dark"><?= h($apt['first_name'] . ' ' . $apt['last_name']) ?></div>
+                        <div class="small text-muted" dir="ltr">
+                          <a href="tel:<?= h($apt['patient_phone']) ?>" class="btn btn-sm btn-light border py-0 px-2 rounded-pill text-primary small">
+                            <i class="bi bi-telephone ms-1"></i><?= h($apt['patient_phone'] ?: '—') ?>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    <span class="status-tag <?= h($apt['status']) ?>">
+                      <?= match ($apt['status']) {
+                        'pending'   => 'قيد الانتظار',
+                        'accepted'  => 'مقبول',
+                        'rejected'  => 'مرفوض',
+                        'cancelled' => 'ملغى',
+                        default     => $apt['status']
+                      } ?>
+                    </span>
+                  </div>
+
+                  <div class="d-flex align-items-center gap-2 text-muted small mb-2 flex-wrap">
+                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-calendar3 me-1 text-primary"></i><?= h($apt['appointment_date']) ?></span>
+                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-clock me-1 text-primary"></i><?= substr($apt['appointment_time'], 0, 5) ?></span>
+                    <?php if (!empty($apt['prescription_file'])): ?>
+                      <a href="<?= BASE_URL ?>view_prescription.php?file=<?= urlencode($apt['prescription_file']) ?>" target="_blank" class="badge bg-primary text-white text-decoration-none px-2 py-1">
+                        <i class="bi bi-paperclip me-1"></i> معاينة الوصفة
+                      </a>
+                    <?php endif; ?>
+                  </div>
+
+                  <div class="p-2.5 bg-light rounded-3 text-dark small mb-2.5" style="font-size:0.82rem; line-height: 1.5; white-space:pre-wrap;">
+                    <div class="fw-bold text-secondary mb-1">التحاليل المطلوبة:</div>
+                    <?= h($apt['analyses_text']) ?>
+                    <?php if (!empty($apt['notes'])): ?>
+                      <div class="text-muted mt-1 pt-1 border-top"><i class="bi bi-info-circle me-1"></i><?= h($apt['notes']) ?></div>
+                    <?php endif; ?>
+                  </div>
+
+                  <?php if ($apt['status'] === 'rejected' && !empty($apt['rejection_reason'])): ?>
+                    <div class="alert alert-danger py-1.5 px-2.5 small mb-2 rounded-3" style="font-size:0.78rem;">
+                      <strong>سبب الرفض:</strong> <?= h($apt['rejection_reason']) ?>
+                    </div>
+                  <?php endif; ?>
+
+                  <!-- Action Buttons Toolbar for Mobile -->
+                  <div class="d-flex align-items-center gap-2 flex-wrap pt-1">
+                    <?php if ($apt['status'] === 'pending'): ?>
+                      <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="m-0">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
+                        <input type="hidden" name="status" value="accepted">
+                        <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 fw-bold">
+                          <i class="bi bi-check-lg ms-1"></i> قبول
+                        </button>
+                      </form>
+                      <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-bold" onclick="openReasonModal(<?= (int)$apt['id'] ?>, 'rejected', 'رفض طلب الموعد')">
+                        <i class="bi bi-x-lg ms-1"></i> رفض مع سبب
+                      </button>
+                    <?php elseif ($apt['status'] === 'accepted'): ?>
+                      <button type="button" class="btn btn-outline-warning btn-sm rounded-pill px-3 fw-bold" onclick="openReasonModal(<?= (int)$apt['id'] ?>, 'cancelled', 'إلغاء الموعد')">
+                        <i class="bi bi-x-circle ms-1"></i> إلغاء الموعد
+                      </button>
+                    <?php else: ?>
+                      <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="m-0">
+                        <?= csrfField() ?>
+                        <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
+                        <input type="hidden" name="status" value="accepted">
+                        <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-bold">
+                          <i class="bi bi-arrow-repeat ms-1"></i> إعادة قبول
+                        </button>
+                      </form>
+                    <?php endif; ?>
+
+                    <!-- Delete Button -->
+                    <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="m-0 me-auto" onsubmit="return confirm('هل أنت متأكد من رغبتك في حذف هذا الموعد نهائياً؟');">
+                      <?= csrfField() ?>
+                      <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
+                      <input type="hidden" name="action" value="delete">
+                      <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-2.5" title="حذف الموعد نهائياً">
+                        <i class="bi bi-trash3 ms-1"></i> حذف
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+
+            <!-- ── Desktop View: Table (>= 768px) ── -->
+            <div class="table-responsive d-none d-md-block">
               <table class="modern-table align-middle">
                 <thead>
                   <tr>
@@ -649,7 +653,7 @@ $slots = $slotsStmt->fetchAll();
                     <th>التحاليل المطلوبة</th>
                     <th>الوصفة</th>
                     <th>الحالة</th>
-                    <th style="min-width: 140px; text-align: left;">الإجراء</th>
+                    <th style="min-width: 170px; text-align: left;">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -729,8 +733,8 @@ $slots = $slotsStmt->fetchAll();
 
                       <!-- Actions -->
                       <td style="text-align: left;">
-                        <?php if ($apt['status'] === 'pending'): ?>
-                          <div class="d-flex align-items-center gap-1.5 justify-content-end">
+                        <div class="d-flex align-items-center gap-1.5 justify-content-end flex-wrap">
+                          <?php if ($apt['status'] === 'pending'): ?>
                             <!-- Accept Form -->
                             <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline m-0">
                               <?= csrfField() ?>
@@ -747,24 +751,19 @@ $slots = $slotsStmt->fetchAll();
                                     title="رفض الموعد مع تدوين السبب">
                               <i class="bi bi-x-lg"></i> رفض
                             </button>
-                          </div>
 
-                        <?php elseif ($apt['status'] === 'accepted'): ?>
-                          <div class="d-flex align-items-center gap-1.5 justify-content-end">
+                          <?php elseif ($apt['status'] === 'accepted'): ?>
                             <span class="badge bg-success bg-opacity-10 text-success border border-success py-1.5 px-2.5 rounded-pill small">
                               <i class="bi bi-check2"></i> مؤكد
                             </span>
                             <!-- Cancel Button for Accepted Appointments -->
-                            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2 rounded-pill small" 
+                            <button type="button" class="btn btn-outline-warning btn-sm py-1 px-2 rounded-pill small" 
                                     onclick="openReasonModal(<?= (int)$apt['id'] ?>, 'cancelled', 'إلغاء موعد مقبول')"
                                     title="إلغاء هذا الموعد وتحرير الفترة">
                               <i class="bi bi-x-circle ms-1"></i> إلغاء
                             </button>
-                          </div>
 
-                        <?php else: ?>
-                          <div class="d-flex align-items-center gap-1 justify-content-end">
-                            <span class="text-muted small">معالج</span>
+                          <?php else: ?>
                             <!-- Allow Re-accept if needed -->
                             <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline m-0">
                               <?= csrfField() ?>
@@ -774,8 +773,18 @@ $slots = $slotsStmt->fetchAll();
                                 (إعادة قبول)
                               </button>
                             </form>
-                          </div>
-                        <?php endif; ?>
+                          <?php endif; ?>
+
+                          <!-- Delete Appointment Button -->
+                          <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline m-0" onsubmit="return confirm('هل أنت متأكد من رغبتك في حذف هذا الموعد نهائياً؟');">
+                            <?= csrfField() ?>
+                            <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
+                            <input type="hidden" name="action" value="delete">
+                            <button type="submit" class="btn btn-outline-danger btn-sm py-1 px-2 rounded-pill small" title="حذف الموعد نهائياً">
+                              <i class="bi bi-trash3"></i>
+                            </button>
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
@@ -948,10 +957,34 @@ function openReasonModal(aptId, status, title) {
   document.getElementById('modalStatus').value = status;
   document.getElementById('modalTitle').innerHTML = '<i class="bi bi-exclamation-circle text-danger ms-1"></i> ' + title;
   
-  if (!reasonModalInstance) {
-    reasonModalInstance = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
+  const modalEl = document.getElementById('rejectReasonModal');
+  try {
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      if (!reasonModalInstance) {
+        reasonModalInstance = new bootstrap.Modal(modalEl);
+      }
+      reasonModalInstance.show();
+      return;
+    }
+  } catch (e) {
+    console.warn('Bootstrap modal error, using prompt fallback:', e);
   }
-  reasonModalInstance.show();
+
+  // Graceful fallback if bootstrap modal JS fails on older mobile browsers
+  const reason = prompt('يرجى تحديد سبب الرفض أو الإلغاء ليتم إرساله للمريض:', 'التحاليل غير متوفرة حالياً / الفترة ممتلئة');
+  if (reason !== null && reason.trim() !== '') {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = '<?= BASE_URL ?>actions/update_status.php';
+    f.innerHTML = `
+      <?= csrfField() ?>
+      <input type="hidden" name="appointment_id" value="${aptId}">
+      <input type="hidden" name="status" value="${status}">
+      <input type="hidden" name="rejection_reason" value="${reason}">
+    `;
+    document.body.appendChild(f);
+    f.submit();
+  }
 }
 
 function setReason(text) {
