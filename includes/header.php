@@ -128,8 +128,8 @@ function navActive(string ...$patterns): string {
                href="<?= BASE_URL ?>analyses.php">التحاليل الطبية</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link text-primary fw-bold <?= navActive('lab/dashboard') ?>"
-               href="<?= BASE_URL ?>lab/dashboard.php">
+            <a class="nav-link text-primary fw-bold <?= navActive('lab') ?>"
+               href="<?= BASE_URL ?>auth/login.php?role=lab">
               <i class="bi bi-hospital me-1"></i>فضاء المخبر
             </a>
           </li>

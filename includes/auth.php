@@ -12,7 +12,16 @@ function requireLogin(): void {
 }
 
 function requireRole(string ...$roles): void {
-    requireLogin();
+    if (!isset($_SESSION['user_id'])) {
+        $isLab = in_array('lab_manager', $roles, true);
+        $back = urlencode($_SERVER['REQUEST_URI'] ?? '');
+        $param = $isLab ? 'role=lab' : '';
+        if ($back) {
+            $param .= ($param ? '&' : '') . 'redirect=' . $back;
+        }
+        header('Location: ' . BASE_URL . 'auth/login.php' . ($param ? '?' . $param : ''));
+        exit;
+    }
     if (!in_array($_SESSION['user_role'] ?? '', $roles, true)) {
         header('Location: ' . BASE_URL . 'index.php');
         exit;

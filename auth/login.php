@@ -53,14 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
 $redirectVal = $_GET['redirect'] ?? $_POST['redirect'] ?? '';
-$isLabLogin = str_contains($redirectVal, 'lab/') || (isset($_GET['role']) && $_GET['role'] === 'lab');
+$roleParam   = $_GET['role'] ?? $_POST['role'] ?? '';
+$isLabLogin  = ($roleParam === 'lab') || str_contains($redirectVal, 'lab/') || str_contains($_SERVER['HTTP_REFERER'] ?? '', 'lab');
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>تسجيل الدخول — LABORA</title>
+  <title><?= $isLabLogin ? 'دخول فضاء المخبر' : 'تسجيل الدخول' ?> — LABORA</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
   <link rel="stylesheet" href="<?= BASE_URL ?>assets/vendor/bootstrap-icons/bootstrap-icons.css">
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
@@ -74,9 +75,11 @@ $isLabLogin = str_contains($redirectVal, 'lab/') || (isset($_GET['role']) && $_G
     <span class="brand-text">LABORA</span>
   </div>
 
-  <h4 class="text-center fw-800 mb-1" style="color:var(--lb-text-dark);">تسجيل الدخول</h4>
+  <h4 class="text-center fw-800 mb-1" style="color:var(--lb-text-dark);">
+    <?= $isLabLogin ? 'دخول فضاء المخبر' : 'تسجيل الدخول' ?>
+  </h4>
   <p class="text-center text-lb-muted small mb-4">
-    <?= $isLabLogin ? 'تسجيل دخول فضاء مسؤولي المخابر' : 'أهلاً بك مجدداً في منصة LABORA للتحاليل الطبية' ?>
+    <?= $isLabLogin ? 'تسجيل دخول مخصص لمدراء ومسؤولي المخابر الطبية' : 'أهلاً بك مجدداً في منصة LABORA للتحاليل الطبية' ?>
   </p>
 
   <?php if ($error): ?>
@@ -114,13 +117,16 @@ $isLabLogin = str_contains($redirectVal, 'lab/') || (isset($_GET['role']) && $_G
 
   <form method="POST" action="">
     <?= csrfField() ?>
-    <input type="hidden" name="redirect" value="<?= h($redirectVal) ?>">
+    <input type="hidden" name="redirect" value="<?= h($redirectVal ?: ($isLabLogin ? '/lab/dashboard.php' : '')) ?>">
+    <input type="hidden" name="role" value="<?= $isLabLogin ? 'lab' : '' ?>">
 
     <div class="lb-form-group">
-      <label class="lb-label" for="email">البريد الإلكتروني</label>
+      <label class="lb-label" for="email">
+        <?= $isLabLogin ? 'البريد الإلكتروني للمخبر' : 'البريد الإلكتروني' ?>
+      </label>
       <input type="email" class="lb-input" id="email" name="email"
              value="<?= h($_POST['email'] ?? '') ?>"
-             placeholder="example@labora.dz" required autofocus>
+             placeholder="<?= $isLabLogin ? 'lab@labora.dz' : 'example@labora.dz' ?>" required autofocus>
     </div>
 
     <div class="lb-form-group mb-4">
@@ -130,7 +136,11 @@ $isLabLogin = str_contains($redirectVal, 'lab/') || (isset($_GET['role']) && $_G
     </div>
 
     <button type="submit" class="btn-lb-primary w-100 justify-content-center py-2 mb-3">
-      <i class="bi bi-box-arrow-in-left ms-1"></i> تسجيل الدخول
+      <?php if ($isLabLogin): ?>
+        <i class="bi bi-hospital ms-1"></i> دخول فضاء المخبر
+      <?php else: ?>
+        <i class="bi bi-box-arrow-in-left ms-1"></i> تسجيل الدخول
+      <?php endif; ?>
     </button>
   </form>
 
@@ -140,6 +150,12 @@ $isLabLogin = str_contains($redirectVal, 'lab/') || (isset($_GET['role']) && $_G
       <a href="<?= BASE_URL ?>auth/register.php" class="btn-lb-outline w-100 justify-content-center py-2">
         إنشاء حساب مريض جديد
       </a>
+    </div>
+  <?php else: ?>
+    <div class="text-center mt-3 pt-3 border-top">
+      <p class="small text-lb-muted mb-0">
+        <i class="bi bi-shield-lock me-1"></i> يتم اعتماد وإدارة حسابات المخابر عبر إدارة LABORA.
+      </p>
     </div>
   <?php endif; ?>
 </div>
