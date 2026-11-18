@@ -3,52 +3,31 @@ require_once dirname(__DIR__) . '/config.php';
 requireRole('lab_manager', 'admin');
 
 $userId = currentUserId();
+$userRole = currentUserRole();
 
-// Fetch all active laboratories
-$allLabs = $conn->query("SELECT id, name, city, address FROM laboratories WHERE status='active' ORDER BY id ASC")->fetchAll();
+// Strict Laboratory Isolation: Each manager ONLY accesses their own laboratory
+$stmt = $conn->prepare("SELECT * FROM laboratories WHERE manager_id = :uid LIMIT 1");
+$stmt->execute([':uid' => $userId]);
+$lab = $stmt->fetch();
 
-// Determine which laboratory is currently selected (with quick URL switch support)
-if (isset($_GET['lab_id'])) {
-    if ($_GET['lab_id'] === 'all') {
-        $lab_id = 'all';
-    } else {
-        $lab_id = (int)$_GET['lab_id'];
-    }
-    $_SESSION['lab_id'] = $lab_id;
-} else {
-    // If lab manager has an assigned laboratory, use it
-    $stmt = $conn->prepare("SELECT id FROM laboratories WHERE manager_id = :uid LIMIT 1");
-    $stmt->execute([':uid' => $userId]);
-    $labRow = $stmt->fetch();
-    if ($labRow) {
-        $lab_id = (int)$labRow['id'];
-        $_SESSION['lab_id'] = $lab_id;
-    } else {
-        // Fallback to session or lab 2 (مخبر الشفاء المركزي)
-        $lab_id = $_SESSION['lab_id'] ?? 2;
+if (!$lab) {
+    if ($userRole === 'admin') {
+        $lab = $conn->query("SELECT * FROM laboratories ORDER BY id ASC LIMIT 1")->fetch();
     }
 }
 
-// Fetch Laboratory Info
-if ($lab_id === 'all') {
-    $lab = ['id' => 'all', 'name' => 'جميع المخابر المعتمدة (عرض شامل)', 'city' => 'كل المدن'];
-} else {
-    $lStmt = $conn->prepare("SELECT * FROM laboratories WHERE id = :lid LIMIT 1");
-    $lStmt->execute([':lid' => (int)$lab_id]);
-    $lab = $lStmt->fetch();
-    if (!$lab && !empty($allLabs)) {
-        $lab = $allLabs[0];
-        $lab_id = (int)$lab['id'];
-        $_SESSION['lab_id'] = $lab_id;
-    }
+if (!$lab) {
+    setFlash('error', 'لا يوجد مخبر مسجل مرتبط بهذا الحساب.');
+    redirect('index.php');
 }
+
+$lab_id = (int)$lab['id'];
+$_SESSION['lab_id'] = $lab_id;
 
 // Automatically purge expired past slots (prior to today) with no active appointments
-if ($lab_id !== 'all') {
-    try {
-        $conn->prepare("DELETE FROM availability_slots WHERE laboratory_id = :lid AND slot_date < CURDATE() AND current_bookings = 0")->execute([':lid' => (int)$lab_id]);
-    } catch (Exception $e) {}
-}
+try {
+    $conn->prepare("DELETE FROM availability_slots WHERE laboratory_id = :lid AND slot_date < CURDATE() AND current_bookings = 0")->execute([':lid' => $lab_id]);
+} catch (Exception $e) {}
 
 // Handle New Slot Creation
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_slot'])) {
@@ -102,23 +81,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['purge_outdated_slots'
     }
 }
 
-// Fetch Appointments for this lab or all labs
+// Fetch Appointments strictly for this lab
 $status_filter = trim($_GET['status'] ?? '');
 $sql = "
     SELECT a.*, 
            u.first_name, u.last_name, 
-           u.phone AS patient_phone, u.email AS patient_email,
-           l.name AS laboratory_name, l.city AS laboratory_city
+           u.phone AS patient_phone, u.email AS patient_email
     FROM appointments a
     LEFT JOIN users u ON u.id = a.patient_id
-    LEFT JOIN laboratories l ON l.id = a.laboratory_id
-    WHERE 1=1
+    WHERE a.laboratory_id = :lid
 ";
-$params = [];
-if ($lab_id !== 'all') {
-    $sql .= " AND a.laboratory_id = :lid";
-    $params[':lid'] = (int)$lab_id;
-}
+$params = [':lid' => $lab_id];
 if (in_array($status_filter, ['pending', 'accepted', 'rejected', 'cancelled'], true)) {
     $sql .= " AND a.status = :st";
     $params[':st'] = $status_filter;
@@ -129,36 +102,26 @@ $aStmt->execute($params);
 $appointments = $aStmt->fetchAll();
 
 // Counts for statistics
-$countSql = "
+$countStmt = $conn->prepare("
     SELECT 
       COUNT(*) AS total,
       SUM(status = 'pending') AS pending_cnt,
       SUM(status = 'accepted') AS accepted_cnt,
       SUM(status = 'rejected') AS rejected_cnt
-    FROM appointments
-";
-if ($lab_id !== 'all') {
-    $countSql .= " WHERE laboratory_id = :lid";
-    $countStmt = $conn->prepare($countSql);
-    $countStmt->execute([':lid' => (int)$lab_id]);
-} else {
-    $countStmt = $conn->prepare($countSql);
-    $countStmt->execute();
-}
+    FROM appointments WHERE laboratory_id = :lid
+");
+$countStmt->execute([':lid' => $lab_id]);
 $stats = $countStmt->fetch();
 
 // Fetch future active slots for display (starting from today onwards)
-$slots = [];
-if ($lab_id !== 'all') {
-    $slotsStmt = $conn->prepare("
-        SELECT * FROM availability_slots 
-        WHERE laboratory_id = :lid AND slot_date >= CURDATE()
-        ORDER BY slot_date ASC, slot_time ASC 
-        LIMIT 30
-    ");
-    $slotsStmt->execute([':lid' => (int)$lab_id]);
-    $slots = $slotsStmt->fetchAll();
-}
+$slotsStmt = $conn->prepare("
+    SELECT * FROM availability_slots 
+    WHERE laboratory_id = :lid AND slot_date >= CURDATE()
+    ORDER BY slot_date ASC, slot_time ASC 
+    LIMIT 30
+");
+$slotsStmt->execute([':lid' => $lab_id]);
+$slots = $slotsStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -459,38 +422,10 @@ if ($lab_id !== 'all') {
         <span class="dash-brand-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <span class="fw-900 fs-5 tracking-tight">LABORA</span>
       </a>
-      <!-- Laboratory Switcher Dropdown -->
-      <div class="dropdown">
-        <button class="btn btn-sm btn-outline-light dropdown-toggle rounded-pill px-3 py-1.5 fw-bold d-inline-flex align-items-center gap-1.5" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.82rem; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3);">
-          <i class="bi bi-hospital text-info"></i>
-          <span><?= h($lab['name'] ?? 'مخبر التحاليل الطبية') ?></span>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow-lg rounded-4 p-2 border-0" style="min-width: 270px; z-index: 1060;">
-          <li><h6 class="dropdown-header text-primary fw-bold px-2 mb-1"><i class="bi bi-arrow-left-right me-1"></i> اختر لوحة المخبر:</h6></li>
-          <?php foreach ($allLabs as $l): ?>
-            <li>
-              <a class="dropdown-item rounded-3 py-2 px-2.5 d-flex justify-content-between align-items-center mb-1 <?= ((string)$lab_id === (string)$l['id']) ? 'active fw-bold' : '' ?>" href="?lab_id=<?= (int)$l['id'] ?>">
-                <div>
-                  <div class="fw-bold" style="font-size:0.85rem;"><?= h($l['name']) ?></div>
-                  <small class="text-muted" style="font-size:0.75rem;"><i class="bi bi-geo-alt"></i> <?= h($l['city']) ?></small>
-                </div>
-                <?php if ((string)$lab_id === (string)$l['id']): ?>
-                  <i class="bi bi-check-circle-fill text-white ms-2"></i>
-                <?php endif; ?>
-              </a>
-            </li>
-          <?php endforeach; ?>
-          <li><hr class="dropdown-divider my-1"></li>
-          <li>
-            <a class="dropdown-item rounded-3 py-2 px-2.5 d-flex justify-content-between align-items-center <?= ($lab_id === 'all') ? 'active fw-bold' : '' ?>" href="?lab_id=all">
-              <span class="fw-bold" style="font-size:0.85rem;"><i class="bi bi-grid-fill me-1 text-warning"></i> عرض جميع المخابر معاً</span>
-              <?php if ($lab_id === 'all'): ?>
-                <i class="bi bi-check-circle-fill text-white ms-2"></i>
-              <?php endif; ?>
-            </a>
-          </li>
-        </ul>
-      </div>
+      <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-10 px-3 py-1.5 rounded-pill fw-600 fs-7 d-none d-sm-inline-flex align-items-center gap-1.5">
+        <i class="bi bi-hospital text-info"></i>
+        <?= h($lab['name']) ?> — <?= h($lab['city']) ?>
+      </span>
     </div>
 
     <div class="d-flex align-items-center gap-3">
@@ -521,21 +456,9 @@ if ($lab_id !== 'all') {
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
       <h4 class="fw-800 text-dark mb-1">لوحة إدارة المواعيد والتحاليل</h4>
-      <p class="text-muted small mb-0">متابعة دقيقة وفورية لحجوزات المرضى وتنظيم الفترات الزمنية للمخبر</p>
+      <p class="text-muted small mb-0">متابعة دقيقة وفورية لحجوزات <?= h($lab['name']) ?> وتنظيم الفترات الزمنية للمخبر</p>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <!-- Quick Lab Switcher Pills -->
-      <div class="btn-group btn-group-sm rounded-pill shadow-sm bg-white p-1 border">
-        <a href="?lab_id=2" class="btn btn-sm rounded-pill px-3 fw-bold <?= ((string)$lab_id === '2') ? 'btn-primary' : 'btn-light text-dark' ?>">
-          🏢 مخبر الشفاء (وهران)
-        </a>
-        <a href="?lab_id=1" class="btn btn-sm rounded-pill px-3 fw-bold <?= ((string)$lab_id === '1') ? 'btn-primary' : 'btn-light text-dark' ?>">
-          🏢 مخبر ابن سينا (الجزائر)
-        </a>
-        <a href="?lab_id=all" class="btn btn-sm rounded-pill px-3 fw-bold <?= ($lab_id === 'all') ? 'btn-primary' : 'btn-light text-dark' ?>">
-          🌐 الكل
-        </a>
-      </div>
+    <div class="d-flex align-items-center gap-2">
       <span class="badge bg-white text-muted border px-3 py-2 rounded-pill small">
         <i class="bi bi-calendar-event text-primary ms-1"></i>
         <?= date('Y-m-d') ?>
@@ -613,10 +536,10 @@ if ($lab_id !== 'all') {
 
           <!-- Segmented Filter Control -->
           <div class="filter-pill-nav">
-            <a href="?status=&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= empty($status_filter) ? 'active' : '' ?>">الكل (<?= (int)($stats['total'] ?? 0) ?>)</a>
-            <a href="?status=pending&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'pending' ? 'active' : '' ?>">قيد الانتظار (<?= (int)($stats['pending_cnt'] ?? 0) ?>)</a>
-            <a href="?status=accepted&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'accepted' ? 'active' : '' ?>">المقبولة (<?= (int)($stats['accepted_cnt'] ?? 0) ?>)</a>
-            <a href="?status=rejected&lab_id=<?= h((string)$lab_id) ?>" class="filter-pill-link <?= $status_filter === 'rejected' ? 'active' : '' ?>">المرفوضة</a>
+            <a href="?status=" class="filter-pill-link <?= empty($status_filter) ? 'active' : '' ?>">الكل (<?= (int)($stats['total'] ?? 0) ?>)</a>
+            <a href="?status=pending" class="filter-pill-link <?= $status_filter === 'pending' ? 'active' : '' ?>">قيد الانتظار (<?= (int)($stats['pending_cnt'] ?? 0) ?>)</a>
+            <a href="?status=accepted" class="filter-pill-link <?= $status_filter === 'accepted' ? 'active' : '' ?>">المقبولة (<?= (int)($stats['accepted_cnt'] ?? 0) ?>)</a>
+            <a href="?status=rejected" class="filter-pill-link <?= $status_filter === 'rejected' ? 'active' : '' ?>">المرفوضة</a>
           </div>
         </div>
 
@@ -641,11 +564,15 @@ if ($lab_id !== 'all') {
                     <div class="d-flex align-items-center gap-2">
                       <div class="patient-avatar"><?= h($patientInitials) ?></div>
                       <div>
-                        <div class="fw-bold text-dark"><?= h($apt['first_name'] . ' ' . $apt['last_name']) ?></div>
+                        <div class="fw-bold text-dark"><?= h(($apt['first_name'] ?? '') . ' ' . ($apt['last_name'] ?? '')) ?></div>
                         <div class="small text-muted" dir="ltr">
-                          <a href="tel:<?= h($apt['patient_phone']) ?>" class="btn btn-sm btn-light border py-0 px-2 rounded-pill text-primary small">
-                            <i class="bi bi-telephone ms-1"></i><?= h($apt['patient_phone'] ?: '—') ?>
-                          </a>
+                          <?php if (!empty($apt['patient_phone'])): ?>
+                            <a href="tel:<?= h($apt['patient_phone']) ?>" class="btn btn-sm btn-light border py-0 px-2 rounded-pill text-primary small">
+                              <i class="bi bi-telephone ms-1"></i><?= h($apt['patient_phone']) ?>
+                            </a>
+                          <?php else: ?>
+                            <span class="text-muted small"><i class="bi bi-telephone ms-1"></i>—</span>
+                          <?php endif; ?>
                         </div>
                       </div>
                     </div>
@@ -661,9 +588,8 @@ if ($lab_id !== 'all') {
                   </div>
 
                   <div class="d-flex align-items-center gap-2 text-muted small mb-2 flex-wrap">
-                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1"><i class="bi bi-hospital me-1"></i><?= h($apt['laboratory_name'] ?? 'مخبر الشفاء') ?></span>
-                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-calendar3 me-1 text-primary"></i><?= h($apt['appointment_date']) ?></span>
-                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-clock me-1 text-primary"></i><?= substr($apt['appointment_time'], 0, 5) ?></span>
+                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-calendar3 me-1 text-primary"></i><?= h($apt['appointment_date'] ?? '—') ?></span>
+                    <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-clock me-1 text-primary"></i><?= !empty($apt['appointment_time']) ? substr($apt['appointment_time'], 0, 5) : '—' ?></span>
                     <?php if (!empty($apt['prescription_file'])): ?>
                       <a href="<?= BASE_URL ?>view_prescription.php?file=<?= urlencode($apt['prescription_file']) ?>" target="_blank" class="badge bg-primary text-white text-decoration-none px-2 py-1">
                         <i class="bi bi-paperclip me-1"></i> معاينة الوصفة
@@ -673,7 +599,7 @@ if ($lab_id !== 'all') {
 
                   <div class="p-2.5 bg-light rounded-3 text-dark small mb-2.5" style="font-size:0.82rem; line-height: 1.5; white-space:pre-wrap;">
                     <div class="fw-bold text-secondary mb-1">التحاليل المطلوبة:</div>
-                    <?= h($apt['analyses_text']) ?>
+                    <?= h($apt['analyses_text'] ?? '') ?>
                     <?php if (!empty($apt['notes'])): ?>
                       <div class="text-muted mt-1 pt-1 border-top"><i class="bi bi-info-circle me-1"></i><?= h($apt['notes']) ?></div>
                     <?php endif; ?>
@@ -751,16 +677,15 @@ if ($lab_id !== 'all') {
                         <div class="d-flex align-items-center gap-2.5">
                           <div class="patient-avatar"><?= h($patientInitials) ?></div>
                           <div>
-                            <div class="fw-bold text-dark"><?= h($apt['first_name'] . ' ' . $apt['last_name']) ?></div>
+                            <div class="fw-bold text-dark"><?= h(($apt['first_name'] ?? '') . ' ' . ($apt['last_name'] ?? '')) ?></div>
                             <div class="small text-muted" dir="ltr" style="text-align:right;">
-                              <a href="tel:<?= h($apt['patient_phone']) ?>" class="text-decoration-none text-muted small">
-                                <i class="bi bi-telephone ms-1 text-primary"></i><?= h($apt['patient_phone'] ?: '—') ?>
-                              </a>
-                            </div>
-                            <div class="mt-1">
-                              <span class="badge bg-light text-primary border px-2 py-0.5 rounded-pill small" style="font-size:0.72rem;">
-                                <i class="bi bi-hospital me-1"></i><?= h($apt['laboratory_name'] ?? 'مخبر الشفاء') ?>
-                              </span>
+                              <?php if (!empty($apt['patient_phone'])): ?>
+                                <a href="tel:<?= h($apt['patient_phone']) ?>" class="text-decoration-none text-muted small">
+                                  <i class="bi bi-telephone ms-1 text-primary"></i><?= h($apt['patient_phone']) ?>
+                                </a>
+                              <?php else: ?>
+                                <span class="text-muted small"><i class="bi bi-telephone ms-1 text-secondary"></i>—</span>
+                              <?php endif; ?>
                             </div>
                           </div>
                         </div>
@@ -769,17 +694,17 @@ if ($lab_id !== 'all') {
                       <!-- Date & Time -->
                       <td>
                         <div class="fw-bold text-dark" style="font-size:0.875rem;">
-                          <?= h($apt['appointment_date']) ?>
+                          <?= h($apt['appointment_date'] ?? '—') ?>
                         </div>
                         <span class="badge bg-light text-primary border px-2 py-0.5 rounded-pill small">
-                          <i class="bi bi-clock me-1"></i><?= substr($apt['appointment_time'], 0, 5) ?>
+                          <i class="bi bi-clock me-1"></i><?= !empty($apt['appointment_time']) ? substr($apt['appointment_time'], 0, 5) : '—' ?>
                         </span>
                       </td>
 
                       <!-- Analyses -->
                       <td>
                         <div class="p-2 bg-light rounded text-dark small" style="max-width: 240px; white-space: pre-wrap; font-size:0.82rem; line-height:1.5;">
-                          <?= h($apt['analyses_text']) ?>
+                          <?= h($apt['analyses_text'] ?? '') ?>
                         </div>
                         <?php if (!empty($apt['notes'])): ?>
                           <small class="text-muted d-block mt-1" style="font-size:0.75rem;">

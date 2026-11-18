@@ -32,8 +32,8 @@ function getFlash(): ?array {
 }
 
 // ── Output / Sanitization ────────────────────────────────────
-function h(string $value): string {
-    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+function h(?string $value): string {
+    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 }
 
 function redirect(string $path): never {
