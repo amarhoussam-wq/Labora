@@ -16,7 +16,7 @@ $new_status     = trim($_POST['status'] ?? '');
 $reason         = trim($_POST['rejection_reason'] ?? '');
 $lab_id         = currentLabId();
 
-if (!in_array($new_status, ['accepted', 'rejected'], true)) {
+if (!in_array($new_status, ['accepted', 'rejected', 'cancelled'], true)) {
     setFlash('error', 'إجراء غير صالح');
     redirect('lab/dashboard.php');
 }
@@ -48,12 +48,12 @@ try {
     ");
     $upd->execute([
         ':st' => $new_status,
-        ':rr' => ($new_status === 'rejected') ? ($reason ?: 'تم الرفض من قبل المخبر') : null,
+        ':rr' => in_array($new_status, ['rejected', 'cancelled'], true) ? ($reason ?: 'تم الرفض/الإلغاء من قبل المخبر') : null,
         ':aid' => $appointment_id
     ]);
 
-    // If rejected, free up the slot capacity so another patient can book
-    if ($new_status === 'rejected' && $apt['slot_id']) {
+    // If rejected or cancelled from an active status, free up the slot capacity
+    if (in_array($new_status, ['rejected', 'cancelled'], true) && $apt['slot_id']) {
         $relSlot = $conn->prepare("
             UPDATE availability_slots 
             SET current_bookings = GREATEST(current_bookings - 1, 0),
@@ -64,7 +64,13 @@ try {
     }
 
     $conn->commit();
-    setFlash('success', $new_status === 'accepted' ? 'تم قبول الموعد وتأكيده بنجاح' : 'تم رفض طلب الموعد وتحرير الفترة الزمنية');
+    $statusText = match($new_status) {
+        'accepted'  => 'تم قبول الموعد وتأكيده بنجاح.',
+        'rejected'  => 'تم رفض الموعد مع حفظ السبب وتحرير الفترة الزمنية.',
+        'cancelled' => 'تم إلغاء الموعد المقبول وتحرير الفترة الزمنية.',
+        default     => 'تم تحديث حالة الموعد.'
+    };
+    setFlash('success', $statusText);
 
 } catch (Exception $e) {
     if ($conn->inTransaction()) {

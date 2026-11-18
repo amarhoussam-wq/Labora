@@ -107,10 +107,14 @@ require_once dirname(__DIR__) . '/includes/header.php';
             </div>
           <?php endif; ?>
 
-          <!-- Rejection reason if any -->
-          <?php if ($apt['status'] === 'rejected' && !empty($apt['rejection_reason'])): ?>
-            <div class="alert alert-danger py-2 px-3 small mt-3 mb-0 rounded-3 border-0">
-              <i class="bi bi-x-circle-fill ms-1"></i> <strong>سبب الرفض من المخبر:</strong> <?= h($apt['rejection_reason']) ?>
+          <!-- Rejection / Cancellation reason if any -->
+          <?php if (in_array($apt['status'], ['rejected', 'cancelled'], true) && !empty($apt['rejection_reason'])): ?>
+            <div class="alert alert-danger py-2 px-3 small mt-3 mb-0 rounded-3 border-0 d-flex align-items-center gap-2">
+              <i class="bi bi-info-circle-fill text-danger fs-6"></i>
+              <div>
+                <strong><?= $apt['status'] === 'rejected' ? 'سبب الرفض من المخبر:' : 'سبب الإلغاء:' ?></strong>
+                <span class="ms-1"><?= h($apt['rejection_reason']) ?></span>
+              </div>
             </div>
           <?php endif; ?>
 

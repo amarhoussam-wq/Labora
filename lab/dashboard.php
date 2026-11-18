@@ -638,7 +638,7 @@ $slots = $slotsStmt->fetchAll();
                         <?php if ($apt['status'] === 'pending'): ?>
                           <div class="d-flex align-items-center gap-1.5 justify-content-end">
                             <!-- Accept Form -->
-                            <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline">
+                            <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline m-0">
                               <?= csrfField() ?>
                               <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
                               <input type="hidden" name="status" value="accepted">
@@ -647,21 +647,40 @@ $slots = $slotsStmt->fetchAll();
                               </button>
                             </form>
 
-                            <!-- Reject Form -->
-                            <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline" onsubmit="return confirmReject(this);">
+                            <!-- Reject Button opening Modal -->
+                            <button type="button" class="btn-action-reject" 
+                                    onclick="openReasonModal(<?= (int)$apt['id'] ?>, 'rejected', 'رفض طلب الموعد')"
+                                    title="رفض الموعد مع تدوين السبب">
+                              <i class="bi bi-x-lg"></i> رفض
+                            </button>
+                          </div>
+
+                        <?php elseif ($apt['status'] === 'accepted'): ?>
+                          <div class="d-flex align-items-center gap-1.5 justify-content-end">
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success py-1.5 px-2.5 rounded-pill small">
+                              <i class="bi bi-check2"></i> مؤكد
+                            </span>
+                            <!-- Cancel Button for Accepted Appointments -->
+                            <button type="button" class="btn btn-outline-danger btn-sm py-1 px-2 rounded-pill small" 
+                                    onclick="openReasonModal(<?= (int)$apt['id'] ?>, 'cancelled', 'إلغاء موعد مقبول')"
+                                    title="إلغاء هذا الموعد وتحرير الفترة">
+                              <i class="bi bi-x-circle ms-1"></i> إلغاء
+                            </button>
+                          </div>
+
+                        <?php else: ?>
+                          <div class="d-flex align-items-center gap-1 justify-content-end">
+                            <span class="text-muted small">معالج</span>
+                            <!-- Allow Re-accept if needed -->
+                            <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" class="d-inline m-0">
                               <?= csrfField() ?>
                               <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
-                              <input type="hidden" name="status" value="rejected">
-                              <input type="hidden" name="rejection_reason" value="">
-                              <button type="submit" class="btn-action-reject" title="رفض الموعد">
-                                <i class="bi bi-x-lg"></i> رفض
+                              <input type="hidden" name="status" value="accepted">
+                              <button type="submit" class="btn btn-link text-success p-0 text-decoration-none small" title="إعادة قبول الموعد">
+                                (إعادة قبول)
                               </button>
                             </form>
                           </div>
-                        <?php else: ?>
-                          <span class="text-muted small" style="font-size:0.8rem;">
-                            <i class="bi bi-check-all text-success ms-1"></i>معالج
-                          </span>
                         <?php endif; ?>
                       </td>
                     </tr>
@@ -776,17 +795,74 @@ $slots = $slotsStmt->fetchAll();
   </div>
 </main>
 
-<script>
-function confirmReject(form) {
-  const reason = prompt("يرجى كتابة سبب رفض هذا الموعد للمريض (اختياري):", "الفترة غير ملائمة / التحاليل غير متوفرة حالياً");
-  if (reason === null) {
-    return false; // cancelled
-  }
-  form.querySelector('input[name="rejection_reason"]').value = reason;
-  return true;
-}
-</script>
+<!-- Modal for Rejection / Cancellation Reason -->
+<div class="modal fade" id="rejectReasonModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold text-dark" id="modalTitle">
+          <i class="bi bi-exclamation-circle text-danger ms-1"></i> تدوين سبب الرفض / الإلغاء
+        </h5>
+        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="<?= BASE_URL ?>actions/update_status.php" id="modalActionForm">
+        <?= csrfField() ?>
+        <input type="hidden" name="appointment_id" id="modalAppointmentId" value="0">
+        <input type="hidden" name="status" id="modalStatus" value="rejected">
+        
+        <div class="modal-body p-4">
+          <p class="small text-muted mb-3">
+            حدد سبب الرفض أو الإلغاء ليتم إرساله للمريض ويظهر بوضوح في حسابه:
+          </p>
+
+          <!-- Quick Reason Tags -->
+          <div class="mb-3">
+            <label class="form-label small fw-bold text-muted d-block">أسباب شائعة جاهزة (اضغط لاختيار أحدها فوراً):</label>
+            <div class="d-flex flex-wrap gap-1.5">
+              <button type="button" class="btn btn-sm btn-light border rounded-pill" onclick="setReason('الفترة الزمنية ممتلئة بالكامل')">الفترة ممتلئة</button>
+              <button type="button" class="btn btn-sm btn-light border rounded-pill" onclick="setReason('التحاليل المطلوبة غير متوفرة حالياً')">التحاليل غير متوفرة</button>
+              <button type="button" class="btn btn-sm btn-light border rounded-pill" onclick="setReason('صورة الوصفة الطبية غير واضحة')">الوصفة غير واضحة</button>
+              <button type="button" class="btn btn-sm btn-light border rounded-pill" onclick="setReason('يرجى اختيار تاريخ وتوقيت آخر')">يرجى اختيار موعد آخر</button>
+              <button type="button" class="btn btn-sm btn-light border rounded-pill" onclick="setReason('عدم حضور المريض في الموعد المحدد')">عدم حضور المريض</button>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label small fw-bold text-dark">نص السبب الذي سيصل للمريض:</label>
+            <textarea class="form-control rounded-3" name="rejection_reason" id="modalReasonText" rows="3" placeholder="اكتب السبب هنا أو اختر من الأسباب السريعة أعلاه..." required>التحاليل المطلوبة غير متوفرة حالياً</textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer border-top bg-light">
+          <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">تراجع</button>
+          <button type="submit" class="btn btn-danger btn-sm rounded-pill px-4 fw-bold">
+            <i class="bi bi-check-lg ms-1"></i> تأكيد الإجراء وحفظ السبب
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+let reasonModalInstance = null;
+
+function openReasonModal(aptId, status, title) {
+  document.getElementById('modalAppointmentId').value = aptId;
+  document.getElementById('modalStatus').value = status;
+  document.getElementById('modalTitle').innerHTML = '<i class="bi bi-exclamation-circle text-danger ms-1"></i> ' + title;
+  
+  if (!reasonModalInstance) {
+    reasonModalInstance = new bootstrap.Modal(document.getElementById('rejectReasonModal'));
+  }
+  reasonModalInstance.show();
+}
+
+function setReason(text) {
+  document.getElementById('modalReasonText').value = text;
+}
+</script>
 </body>
 </html>
