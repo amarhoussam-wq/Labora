@@ -76,6 +76,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['purge_outdated_slots'
     }
 }
 
+// Handle Creation of Demo Appointment for Presentation & Testing
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_demo_appointment'])) {
+    if (verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $pStmt = $conn->prepare("SELECT id FROM users WHERE role = 'patient' ORDER BY id ASC LIMIT 1");
+        $pStmt->execute();
+        $patientId = $pStmt->fetchColumn();
+        if (!$patientId) {
+            $insP = $conn->prepare("INSERT INTO users (first_name, last_name, email, phone, password_hash, role) VALUES ('سمير', 'المريض', 'patient@labora.dz', '0661998877', '$2y$10$X782bI.ARiQe0oNSu0Txf.LO5JOlqfELMc/ecA5zTpRS77niKfNQi', 'patient')");
+            $insP->execute();
+            $patientId = $conn->lastInsertId();
+        }
+
+        $names = [
+            ['tests' => "NFS - تحليل الدم الشامل (FNS)\nGlycémie à jeun - قياس سكر الدم", 'notes' => 'المريض صائم ويطلب إجراء الفحص صباحاً'],
+            ['tests' => "Bilan Lipidique - الكوليسترول والدهون\nCréatinine - وظائف الكلى", 'notes' => 'متابعة دورية للتحاليل'],
+            ['tests' => "TSH - هرمون الغدة الدرقية\nVitamine D - فيتامين د", 'notes' => 'يوجد وصفة طبية من الطبيب المعالج'],
+            ['tests' => "CRP - بروتين الالتهاب\nECBU - فحص وزرع البول", 'notes' => 'طلب تحليل مستعجل']
+        ];
+        $pick = $names[array_rand($names)];
+        $today = date('Y-m-d');
+        $randomHour = rand(8, 15);
+        $randomMin = ['00', '15', '30', '45'][array_rand(['00', '15', '30', '45'])];
+        $time = sprintf('%02d:%s:00', $randomHour, $randomMin);
+
+        $insApt = $conn->prepare("
+            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
+            VALUES (:pid, :lid, :ad, :at, :ant, :nt, 'pending', NOW())
+        ");
+        $insApt->execute([
+            ':pid' => $patientId,
+            ':lid' => $lab_id,
+            ':ad'  => $today,
+            ':at'  => $time,
+            ':ant' => $pick['tests'],
+            ':nt'  => $pick['notes']
+        ]);
+
+        setFlash('success', 'تمت إضافة طلب موعد جديد بنجاح! يمكنك الآن تجربة أزرار القبول، الرفض مع سبب، أو الإلغاء.');
+        redirect('lab/dashboard.php');
+    }
+}
+
+// Auto-seed if total appointments for this lab is zero so the table is never blank for the jury/demo
+try {
+    $checkCount = $conn->prepare("SELECT COUNT(*) FROM appointments WHERE laboratory_id = :lid");
+    $checkCount->execute([':lid' => $lab_id]);
+    $totalForLab = (int)$checkCount->fetchColumn();
+
+    if ($totalForLab === 0) {
+        $pStmt = $conn->prepare("SELECT id FROM users WHERE role = 'patient' ORDER BY id ASC LIMIT 1");
+        $pStmt->execute();
+        $pid = $pStmt->fetchColumn();
+        if (!$pid) {
+            $conn->prepare("INSERT INTO users (first_name, last_name, email, phone, password_hash, role) VALUES ('سمير', 'المريض', 'patient@labora.dz', '0661998877', '$2y$10$X782bI.ARiQe0oNSu0Txf.LO5JOlqfELMc/ecA5zTpRS77niKfNQi', 'patient')")->execute();
+            $pid = $conn->lastInsertId();
+        }
+        $today = date('Y-m-d');
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+        // 1. Pending (test accept & reject)
+        $conn->prepare("
+            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
+            VALUES (:pid, :lid, :dt, '09:00:00', 'NFS - تحليل الدم الشامل\nGlycémie à jeun - قياس سكر الدم', 'المريض يحتاج لإجراء التحليل صائماً في الصباح الباكر', 'pending', NOW())
+        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $today]);
+
+        // 2. Accepted (test cancel)
+        $conn->prepare("
+            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, created_at)
+            VALUES (:pid, :lid, :dt, '10:30:00', 'Bilan Lipidique - الكوليسترول والدهون الثلاثية\nCréatinine - وظائف الكلى', 'تم التحقق من الوصفة الطبية وتأكيد الحجز', 'accepted', NOW())
+        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $tomorrow]);
+
+        // 3. Rejected (test reason badge)
+        $conn->prepare("
+            INSERT INTO appointments (patient_id, laboratory_id, appointment_date, appointment_time, analyses_text, notes, status, rejection_reason, created_at)
+            VALUES (:pid, :lid, :dt, '08:30:00', 'ECBU - فحص وزرع البول', 'طلب تحليل مستعجل', 'rejected', 'الفترة الزمنية ممتلئة بالكامل في هذا التوقيت', NOW())
+        ")->execute([':pid' => $pid, ':lid' => $lab_id, ':dt' => $today]);
+    }
+} catch (Exception $e) {}
+
 // Fetch Appointments for this lab
 $status_filter = trim($_GET['status'] ?? '');
 $sql = "
@@ -451,7 +530,15 @@ $slots = $slotsStmt->fetchAll();
       <h4 class="fw-800 text-dark mb-1">لوحة إدارة المواعيد والتحاليل</h4>
       <p class="text-muted small mb-0">متابعة دقيقة وفورية لحجوزات المرضى وتنظيم الفترات الزمنية للمخبر</p>
     </div>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <form method="POST" action="" class="m-0">
+        <?= csrfField() ?>
+        <input type="hidden" name="create_demo_appointment" value="1">
+        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 py-2 fw-bold shadow-sm d-inline-flex align-items-center gap-1.5" title="إضافة موعد تجريبي فوراً لاختبار القبول والرفض">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span>➕ إضافة موعد تجريبي للتجربة</span>
+        </button>
+      </form>
       <span class="badge bg-white text-muted border px-3 py-2 rounded-pill small">
         <i class="bi bi-calendar-event text-primary ms-1"></i>
         <?= date('Y-m-d') ?>
@@ -543,7 +630,14 @@ $slots = $slotsStmt->fetchAll();
                 <i class="bi bi-inbox text-secondary" style="font-size: 3rem; opacity: 0.4;"></i>
               </div>
               <h6 class="fw-bold text-dark">لا توجد طلبات مواعيد ضمن هذه الفئة</h6>
-              <p class="small text-muted mb-0">ستظهر المواعيد الجديدة فور إرسال المرضى لطلباتهم.</p>
+              <p class="small text-muted mb-3">يمكنك إضافة موعد تجريبي فوراً لاختبار ميزات القبول والرفض وتحديد الأسباب.</p>
+              <form method="POST" action="" class="d-inline-block">
+                <?= csrfField() ?>
+                <input type="hidden" name="create_demo_appointment" value="1">
+                <button type="submit" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">
+                  <i class="bi bi-plus-circle-fill ms-1"></i> إضافة موعد تجريبي الآن للتجربة
+                </button>
+              </form>
             </div>
           <?php else: ?>
             <div class="table-responsive">

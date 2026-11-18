@@ -16,6 +16,14 @@ $new_status     = trim($_POST['status'] ?? '');
 $reason         = trim($_POST['rejection_reason'] ?? '');
 $lab_id         = currentLabId();
 
+if (!$lab_id) {
+    $stmt = $conn->prepare("SELECT id FROM laboratories WHERE manager_id = :uid LIMIT 1");
+    $stmt->execute([':uid' => currentUserId()]);
+    $labRow = $stmt->fetch();
+    $lab_id = $labRow ? (int)$labRow['id'] : 1;
+    $_SESSION['lab_id'] = $lab_id;
+}
+
 if (!in_array($new_status, ['accepted', 'rejected', 'cancelled'], true)) {
     setFlash('error', 'إجراء غير صالح');
     redirect('lab/dashboard.php');
@@ -24,14 +32,24 @@ if (!in_array($new_status, ['accepted', 'rejected', 'cancelled'], true)) {
 try {
     $conn->beginTransaction();
 
-    // Verify appointment belongs to this lab manager
-    $stmt = $conn->prepare("
-        SELECT id, slot_id, status 
-        FROM appointments 
-        WHERE id = :aid AND laboratory_id = :lid 
-        FOR UPDATE
-    ");
-    $stmt->execute([':aid' => $appointment_id, ':lid' => $lab_id]);
+    // Verify appointment belongs to this lab manager or user is admin
+    if (currentUserRole() === 'admin') {
+        $stmt = $conn->prepare("
+            SELECT id, slot_id, status 
+            FROM appointments 
+            WHERE id = :aid 
+            FOR UPDATE
+        ");
+        $stmt->execute([':aid' => $appointment_id]);
+    } else {
+        $stmt = $conn->prepare("
+            SELECT id, slot_id, status 
+            FROM appointments 
+            WHERE id = :aid AND laboratory_id = :lid 
+            FOR UPDATE
+        ");
+        $stmt->execute([':aid' => $appointment_id, ':lid' => $lab_id]);
+    }
     $apt = $stmt->fetch();
 
     if (!$apt) {
